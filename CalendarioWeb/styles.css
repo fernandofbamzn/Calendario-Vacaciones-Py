@@ -1,0 +1,51 @@
+/* styles.css */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: #f8f9fa;
+}
+
+/* Calendar Grid */
+.calendar-grid {
+    display: grid;
+    grid-template-columns: 200px repeat(auto-fill, minmax(30px, 1fr));
+    gap: 1px;
+    background-color: #dee2e6;
+    border: 1px solid #dee2e6;
+    overflow-x: auto;
+}
+
+.calendar-header-cell, .calendar-cell {
+    background-color: #fff;
+    padding: 0.25rem;
+    text-align: center;
+    font-size: 0.85rem;
+}
+
+.calendar-header-cell {
+    font-weight: bold;
+    background-color: #e9ecef;
+}
+
+.worker-name-cell {
+    background-color: #f8f9fa;
+    font-weight: bold;
+    text-align: left;
+    padding-left: 0.5rem;
+    position: sticky;
+    left: 0;
+    z-index: 10;
+    border-right: 2px solid #dee2e6;
+}
+
+/* Vacation Types */
+.vacation-normal { background-color: #28a745; color: white; }
+.vacation-asuntos-propios { background-color: #17a2b8; color: white; }
+.vacation-enfermedad { background-color: #dc3545; color: white; }
+
+/* Weekends and Holidays */
+.weekend { background-color: #f1f3f5; }
+.holiday { background-color: #ffeeba; }
+
+.navbar-brand {
+    font-weight: 600;
+}
