@@ -39,8 +39,8 @@ namespace CalendarioWPF
         /// <summary>Año del calendario que se está visualizando actualmente (puede diferir del año de cupo activo).</summary>
         private int _visualizedYear;
 
-        /// <summary>Historial de mensajes mostrados en la barra de estado durante la sesión.</summary>
-        private List<string> _logMessages = new() { $"[{DateTime.Now:dd/MM/yyyy HH:mm:ss}] Aplicación iniciada." };
+        /// <summary>Logger centralizado de la aplicación. Sustituye la lista _logMessages manual.</summary>
+        private readonly IAppLogger _logger = AppLogger.Instance;
 
         // ── Variables de arrastre (drag-to-select) ────────────────────────────────
 
@@ -106,6 +106,9 @@ namespace CalendarioWPF
         {
             InitializeComponent();
             _config = AppConfigManager.Cargar();
+            // Conectar el logger central a gestores estáticos
+            AppConfigManager.Logger = _logger;
+            DataManager.Logger = _logger;
             CargarDatos();
             ActualizarSelectTrabajadores();
             ActualizarPanelCupo();
@@ -118,14 +121,20 @@ namespace CalendarioWPF
         /// Muestra un mensaje en la barra de estado inferior con coloreado automático según el tipo:
         /// ⚠️ Amarillo (advertencia), ❌ Rojo (error), ✅ Verde (éxito), gris (informativo).
         /// El mensaje se auto-limpia a "Listo" tras 4 segundos.
-        /// El mensaje también se registra en <see cref="_logMessages"/> para el visor de logs.
+        /// Cada mensaje se registra en <see cref="AppLogger"/> para el visor de logs (máx. 500 entradas FIFO).
         /// </summary>
         private void MostrarEstado(string mensaje)
         {
             if (StatusBarText == null || MainStatusBar == null) return;
             StatusBarText.Text = mensaje;
 
-            _logMessages.Add($"[{DateTime.Now:dd/MM/yyyy HH:mm:ss}] {mensaje}");
+            // Registrar en el logger central (ya gestiona el límite FIFO de 500 entradas)
+            if (mensaje.StartsWith("⚠️"))
+                _logger.Advertencia(mensaje);
+            else if (mensaje.StartsWith("❌"))
+                _logger.Error(mensaje);
+            else
+                _logger.Info(mensaje);
 
             if (mensaje.StartsWith("⚠️"))
             {
@@ -198,7 +207,7 @@ namespace CalendarioWPF
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error al guardar datos: {ex.Message}", "Error de Guardado", MessageBoxButton.OK, MessageBoxImage.Error);
+                MostrarEstado($"❌ Error al guardar datos: {ex.Message}");
             }
         }
 

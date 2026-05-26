@@ -170,6 +170,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="*"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0" Text="Lista de festivos oficiales. Puedes editar, añadir o eliminar fechas directamente." 
@@ -190,6 +191,13 @@
                         <DatePicker x:Name="DpNuevoFestivo" Width="200" FontSize="13" VerticalContentAlignment="Center"/>
                         <Button Content="➕ Añadir Festivo" Margin="8,0,0,0" Click="BtnAddFestivo_Click"/>
                         <Button Content="🗑️ Eliminar Seleccionado(s)" Style="{StaticResource BtnDanger}" Margin="8,0,0,0" Click="BtnRemoveFestivo_Click"/>
+                    </StackPanel>
+                    
+                    <!-- Sección importar festivos de CCAA -->
+                    <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,15,0,0">
+                        <TextBlock Text="Importar de CCAA:" VerticalAlignment="Center" Margin="0,0,8,0" FontWeight="SemiBold" Foreground="{StaticResource ColorTextMuted}" />
+                        <ComboBox x:Name="CbRegiones" Width="200" DisplayMemberPath="Value" SelectedValuePath="Key" />
+                        <Button Content="📥 Importar Festivos" Margin="8,0,0,0" Click="BtnImportarFestivosCCAA_Click" />
                     </StackPanel>
                 </Grid>
             </TabItem>

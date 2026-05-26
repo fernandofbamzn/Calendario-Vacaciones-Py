@@ -4,30 +4,27 @@ namespace CalendarioWPF.Services
 {
     /// <summary>
     /// Interfaz para el servicio de exportación a PDF (PdfExportService).
-    /// Define las firmas para exportar planillas mensuales y diagramas Gantt a PDF.
-    /// Documentado exhaustivamente para reducir el consumo de tokens en futuras interacciones con agentes.
+    /// Actúa como facade opcional para quienes necesiten inyectar ambos servicios a la vez.
     /// </summary>
-    public interface IPdfExportService
+    public interface IPdfExportService : IPdfMensualService, IPdfGanttService
     {
-        /// <summary>
-        /// Exporta la planilla mensual a un archivo PDF.
-        /// Renderiza de forma consecutiva los meses seleccionados de todos los años con actividad
-        /// y al final coloca una o varias hojas con el resumen consolidado de disfrute de vacaciones.
-        /// </summary>
-        /// <param name="path">Ruta del archivo PDF a crear.</param>
-        /// <param name="datos">Datos del plan de vacaciones actual.</param>
-        /// <param name="config">Configuración general de visualización y exportación.</param>
-        /// <param name="años">Lista de años que se procesarán e incluirán en el reporte.</param>
-        void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años);
+    }
 
-        /// <summary>
-        /// Exporta el calendario en formato de cuadrícula Gantt a un archivo PDF.
-        /// Cada mes se renderiza en una hoja horizontal (Landscape) y al final se incluye una hoja de resumen consolidado.
-        /// </summary>
-        /// <param name="path">Ruta del archivo PDF a crear.</param>
-        /// <param name="datos">Datos del plan de vacaciones actual.</param>
-        /// <param name="config">Configuración general de visualización y exportación.</param>
-        /// <param name="años">Lista de años que se procesarán e incluirán en el reporte.</param>
-        void ExportarGantt(string path, PlanVacaciones datos, AppConfig config, List<int> años);
+    /// <summary>
+    /// Implementación de la interfaz IPdfExportService como un facade que redirige a los servicios divididos.
+    /// </summary>
+    public class PdfExportFacade : IPdfExportService
+    {
+        public static IPdfExportService Instance { get; } = new PdfExportFacade();
+
+        public void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años)
+        {
+            PdfMensualService.Instance.ExportarMensual(path, datos, config, años);
+        }
+
+        public void ExportarGantt(string path, PlanVacaciones datos, AppConfig config, List<int> años)
+        {
+            PdfGanttService.Instance.ExportarGantt(path, datos, config, años);
+        }
     }
 }

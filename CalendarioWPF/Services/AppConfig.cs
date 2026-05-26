@@ -13,6 +13,12 @@ namespace CalendarioWPF.Services
     /// </summary>
     public static class AppConfigManager
     {
+        /// <summary>
+        /// Logger para registrar errores silenciosos de configuración.
+        /// Por defecto apunta al singleton global <see cref="AppLogger.Instance"/>.
+        /// </summary>
+        public static IAppLogger Logger { get; set; } = AppLogger.Instance;
+
         private const string ConfigFilename = "app_config.json";
 
         /// <summary>
@@ -30,9 +36,10 @@ namespace CalendarioWPF.Services
                     return JsonSerializer.Deserialize<AppConfig>(json) ?? new AppConfig();
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 // Error silencioso: si falla la lectura, devolver configuración por defecto
+                Logger.Advertencia($"No se pudo cargar '{ConfigFilename}' (se usarán valores por defecto). Detalle: {ex.Message}");
             }
             return new AppConfig();
         }
@@ -49,9 +56,10 @@ namespace CalendarioWPF.Services
                 string json = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(ConfigFilename, json, Encoding.UTF8);
             }
-            catch
+            catch (Exception ex)
             {
                 // Error silencioso al guardar configuración
+                Logger.Error($"Error silencioso al guardar '{ConfigFilename}'", ex);
             }
         }
     }

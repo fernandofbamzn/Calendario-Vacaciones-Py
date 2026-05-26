@@ -137,7 +137,7 @@ namespace CalendarioWPF
             try
             {
                 var anos = ObtenerAnosConDatos();
-                PdfExportService.ExportarMensual(saveFileDialog.FileName, _datos, _config, anos);
+                PdfMensualService.Instance.ExportarMensual(saveFileDialog.FileName, _datos, _config, anos);
                 AbrirArchivo(saveFileDialog.FileName);
                 MostrarEstado("✅ PDF Mensual exportado correctamente.");
             }
@@ -164,7 +164,7 @@ namespace CalendarioWPF
             try
             {
                 var anos = ObtenerAnosConDatos();
-                PdfExportService.ExportarGantt(saveFileDialog.FileName, _datos, _config, anos);
+                PdfGanttService.Instance.ExportarGantt(saveFileDialog.FileName, _datos, _config, anos);
                 AbrirArchivo(saveFileDialog.FileName);
                 MostrarEstado("✅ PDF Gantt exportado correctamente.");
             }
@@ -252,7 +252,7 @@ namespace CalendarioWPF
 
             var txtLogs = new TextBox
             {
-                Text = string.Join(Environment.NewLine, _logMessages),
+                Text = string.Join(Environment.NewLine, _logger.ObtenerHistorial()),
                 IsReadOnly = true,
                 AcceptsReturn = true,
                 TextWrapping = TextWrapping.Wrap,

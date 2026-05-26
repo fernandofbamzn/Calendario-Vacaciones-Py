@@ -66,11 +66,18 @@ namespace CalendarioWPF
         /// </returns>
         private (List<string> mesesSecuencia, List<DateTime> fechasEjeX) ObtenerSecuenciaGantt()
         {
+            // Filtramos por año de CUPO (imputación), no por año natural de la fecha.
+            // Esto corrige el bug que mostraba Gantt vacío cuando todas las vacaciones del año
+            // visualizado eran imputaciones de otro año natural al mismo cupo.
             var todasFechas = _datos.Trabajadores.Values
-                .SelectMany(kvp => kvp.Vacaciones)
-                .Select(fStr => DateTime.TryParseExact(fStr, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d) ? (DateTime?)d : null)
-                .Where(d => d.HasValue && d.Value.Year == _visualizedYear)
-                .Select(d => d!.Value)
+                .SelectMany(info => info.Vacaciones.Select(fStr => {
+                    if (!DateTime.TryParseExact(fStr, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
+                        return (Valid: false, Date: DateTime.MinValue);
+                    int quotaYear = (info.Imputaciones != null && info.Imputaciones.TryGetValue(fStr, out int y)) ? y : d.Year;
+                    return (Valid: quotaYear == _visualizedYear, Date: d);
+                }))
+                .Where(t => t.Valid)
+                .Select(t => t.Date)
                 .ToList();
 
             DateTime minDate = todasFechas.Count > 0 ? todasFechas.Min() : new DateTime(_visualizedYear, 6, 1);

@@ -39,6 +39,13 @@ namespace CalendarioWPF.Services
         /// </summary>
         public static IDataManager Instance { get; } = new DataManager();
 
+        /// <summary>
+        /// Logger utilizado por el DataManager para registrar errores de persistencia.
+        /// Se puede reemplazar con una implementación distinta en el arranque de la aplicación.
+        /// Por defecto apunta al singleton global <see cref="AppLogger.Instance"/>.
+        /// </summary>
+        public static IAppLogger Logger { get; set; } = AppLogger.Instance;
+
         private const string DatosFilename = "datos_vacaciones.json";
 
         /// <summary>
@@ -72,12 +79,25 @@ namespace CalendarioWPF.Services
 
         /// <summary>
         /// Guarda el estado del plan de vacaciones en el archivo JSON local de manera síncrona.
+        /// Si ocurre un error de E/S (disco lleno, permisos, etc.) lanza una excepción para que
+        /// la capa de presentación pueda mostrársela al usuario.
         /// </summary>
         /// <param name="datos">Los datos a guardar.</param>
+        /// <exception cref="IOException">Si no se puede escribir en el archivo de datos.</exception>
         public static void GuardarDatos(PlanVacaciones datos)
         {
-            string json = JsonSerializer.Serialize(datos, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(DatosFilename, json, Encoding.UTF8);
+            try
+            {
+                string json = JsonSerializer.Serialize(datos, new JsonSerializerOptions { WriteIndented = true });
+                File.WriteAllText(DatosFilename, json, Encoding.UTF8);
+                Logger.Info($"Plan guardado correctamente en '{DatosFilename}'.");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error($"Error al guardar '{DatosFilename}'", ex);
+                // Relanzar para que MainWindow pueda mostrarlo en la barra de estado
+                throw;
+            }
         }
 
         /// <summary>

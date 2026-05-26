@@ -9,62 +9,17 @@ using PdfSharp.Drawing;
 
 namespace CalendarioWPF.Services
 {
-    /// <summary>
-    /// Servicio de exportación a PDF para el planificador de vacaciones.
-    /// Utiliza PdfSharp y aplica una escala precisa en milímetros para maquetar el calendario mensual y la tabla Gantt.
-    /// </summary>
-    public class PdfExportService : IPdfExportService
+    public class PdfMensualService : IPdfMensualService
     {
-        /// <summary>
-        /// Instancia única (Singleton) para acceso dinámico a través de la interfaz IPdfExportService.
-        /// </summary>
-        public static IPdfExportService Instance { get; } = new PdfExportService();
+        public static IPdfMensualService Instance { get; } = new PdfMensualService();
 
-        // Factor de escala: en PdfSharp las coordenadas se expresan en puntos tipográficos (points).
-        // 1 pulgada = 72 puntos. 1 pulgada = 25.4 mm. Por tanto, 1 mm = 72 / 25.4 ≈ 2.8346 puntos.
         private const double Mm = 72.0 / 25.4;
 
-        /// <summary>
-        /// Determina si un mes tiene días marcados (festivos del año natural o vacaciones imputadas a este cupo).
-        /// </summary>
-        private static bool CupoMesTieneDiasMarcados(PlanVacaciones datos, int mes, int yearNatural, int quotaYear)
-        {
-            // Verificar si hay festivos en este mes/año natural
-            foreach (var f in datos.Festivos)
-            {
-                if (DateTime.TryParseExact(f, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
-                {
-                    if (d.Year == yearNatural && d.Month == mes)
-                    {
-                        return true;
-                    }
-                }
-            }
-            // Verificar si hay vacaciones imputadas a este cupo en este mes/año natural
-            foreach (var w in datos.Trabajadores.Values)
-            {
-                foreach (var v in w.Vacaciones)
-                {
-                    if (DateTime.TryParseExact(v, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
-                    {
-                        if (d.Year == yearNatural && d.Month == mes)
-                        {
-                            int qYear = (w.Imputaciones != null && w.Imputaciones.TryGetValue(v, out int val)) ? val : d.Year;
-                            if (qYear == quotaYear)
-                            {
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-            return false;
-        }
 
         /// <summary>
         /// Exporta la planilla mensual a un archivo PDF con soporte multiaño.
         /// </summary>
-        public static void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> anos)
+        public void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> anos)
         {
             var anosAProcesar = (config.AnosAExportar != null && config.AnosAExportar.Count > 0)
                 ? config.AnosAExportar.OrderBy(y => y).ToList()
@@ -86,30 +41,6 @@ namespace CalendarioWPF.Services
             }
         }
 
-        /// <summary>
-        /// Exporta la vista de tabla Gantt a un archivo PDF con soporte multiaño.
-        /// </summary>
-        public static void ExportarGantt(string path, PlanVacaciones datos, AppConfig config, List<int> anos)
-        {
-            var anosAProcesar = (config.AnosAExportar != null && config.AnosAExportar.Count > 0)
-                ? config.AnosAExportar.OrderBy(y => y).ToList()
-                : anos.OrderBy(y => y).ToList();
-
-            if (config.ExportarMultiplesPdfs && anosAProcesar.Count > 1)
-            {
-                foreach (int year in anosAProcesar)
-                {
-                    string yearPath = path.Contains(".")
-                        ? path.Insert(path.LastIndexOf('.'), $"_{year}")
-                        : $"{path}_{year}";
-                    GenerarUnicoPdfGantt(yearPath, datos, config, new List<int> { year });
-                }
-            }
-            else
-            {
-                GenerarUnicoPdfGantt(path, datos, config, anosAProcesar);
-            }
-        }
 
         private static void GenerarUnicoPdfMensual(string path, PlanVacaciones datos, AppConfig config, List<int> añosAProcesar)
         {
@@ -137,7 +68,7 @@ namespace CalendarioWPF.Services
                 var listaMeses = new List<(int mes, int yearNatural)>();
                 foreach (int m in mesesBase)
                 {
-                    if (!config.OcultarMesesSinDias || CupoMesTieneDiasMarcados(datos, m, quotaYear, quotaYear))
+                    if (!config.OcultarMesesSinDias || PdfExportHelper.CupoMesTieneDiasMarcados(datos, m, quotaYear, quotaYear))
                     {
                         listaMeses.Add((m, quotaYear));
                     }
@@ -273,7 +204,7 @@ namespace CalendarioWPF.Services
 
                     using (XGraphics gfx = XGraphics.FromPdfPage(page))
                     {
-                        DrawHeaderFooterPdf(gfx, page, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
+                        PdfExportHelper.DrawHeaderFooterPdf(gfx, page, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
 
                         DibujarCalendariosEnPagina(gfx, page, meses, mesIndex, mesesPorPagina, colsPorPagina, filasPorPagina, nombresMeses, daysHeader, fontTitle, fontDays, fontCells, fontCellsBold, fontInitials, penGray, quotaYear, datos);
                     }
@@ -319,7 +250,7 @@ namespace CalendarioWPF.Services
                     pageResumen.Size = PageSize.A4;
                     pageResumen.Orientation = esLandscape ? PageOrientation.Landscape : PageOrientation.Portrait;
                     gfx2 = XGraphics.FromPdfPage(pageResumen);
-                    DrawHeaderFooterPdf(gfx2, pageResumen, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
+                    PdfExportHelper.DrawHeaderFooterPdf(gfx2, pageResumen, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
                     textY = 28 * Mm;
                 }
 
@@ -384,7 +315,7 @@ namespace CalendarioWPF.Services
                         extraPage.Size = PageSize.A4;
                         extraPage.Orientation = esLandscape ? PageOrientation.Landscape : PageOrientation.Portrait;
                         gfx2 = XGraphics.FromPdfPage(extraPage);
-                        DrawHeaderFooterPdf(gfx2, extraPage, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
+                        PdfExportHelper.DrawHeaderFooterPdf(gfx2, extraPage, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
                         textY = 28 * Mm;
                         maxSimY = extraPage.Height.Value - 20 * Mm;
                     }
@@ -395,6 +326,7 @@ namespace CalendarioWPF.Services
 
             document.Save(path);
         }
+
 
         private static void DibujarCalendariosEnPagina(XGraphics gfx, PdfPage page, List<(int mes, int yearNatural)> meses, int mesIndex, int mesesPorPagina, int colsPorPagina, int filasPorPagina, string[] nombresMeses, string[] daysHeader, XFont fontTitle, XFont fontDays, XFont fontCells, XFont fontCellsBold, XFont fontInitials, XPen penGray, int quotaYear, PlanVacaciones datos)
         {
@@ -425,6 +357,7 @@ namespace CalendarioWPF.Services
                 DibujarMesCalendario(gfx, xStart, yStart, colWidth, rowHeight, mes, yearNatural, quotaYear, nombresMeses, daysHeader, fontTitle, fontDays, fontCells, fontCellsBold, fontInitials, penGray, datos);
             }
         }
+
 
         private static void DibujarMesCalendario(XGraphics gfx, double xStart, double yStart, double colWidth, double rowHeight, int mes, int year, int quotaYear, string[] nombresMeses, string[] daysHeader, XFont fontTitle, XFont fontDays, XFont fontCells, XFont fontCellsBold, XFont fontInitials, XPen penGray, PlanVacaciones datos)
         {
@@ -524,7 +457,7 @@ namespace CalendarioWPF.Services
                         {
                             string ObtenerChipTexto(string trabajador)
                             {
-                                string ini = ObtenerIniciales(trabajador);
+                                string ini = PdfExportHelper.ObtenerIniciales(trabajador);
                                 if (datos.Trabajadores.TryGetValue(trabajador, out var tInfo))
                                 {
                                     int qYear = (tInfo.Imputaciones != null && tInfo.Imputaciones.TryGetValue(dateStr, out int yVal)) ? yVal : year;
@@ -568,376 +501,6 @@ namespace CalendarioWPF.Services
                 }
                 curY += cellH;
             }
-        }
-
-        private static void GenerarUnicoPdfGantt(string path, PlanVacaciones datos, AppConfig config, List<int> añosAProcesar)
-        {
-            System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
-
-            PdfDocument document = new PdfDocument();
-            document.Info.Title = datos.TituloPagina + " - Tabla Gantt";
-
-            var sortedWorkers = datos.Trabajadores.Keys.OrderBy(n => n).ToList();
-            string[] nombresMeses = { "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
-            XPen penGray = new XPen(XColor.FromArgb(200, 200, 200), 0.4);
-
-            // 1. Precalcular las páginas totales
-            int totalPaginas = 0;
-            var secuenciasPorAño = new Dictionary<int, (List<string> meses, List<DateTime> fechas)>();
-
-            foreach (int year in añosAProcesar)
-            {
-                var (mSeq, fEje) = ObtenerSecuenciaGanttPorAno(datos, year);
-                secuenciasPorAño[year] = (mSeq, fEje);
-                totalPaginas += mSeq.Count;
-            }
-
-            // Precalcular páginas de resumen Gantt
-            int pagsResumen = 0;
-            double pageHeightLimit = 210 * Mm; // Landscape
-            double maxSimY = pageHeightLimit - 20 * Mm;
-            double simY = 40 * Mm;
-
-            foreach (var w in sortedWorkers)
-            {
-                simY += 4.5 * Mm;
-                simY += 8 * Mm;
-
-                if (simY > 180 * Mm)
-                {
-                    pagsResumen++;
-                    simY = 30 * Mm;
-                }
-            }
-            pagsResumen++;
-
-            double finalTableY = 30 * Mm + 17 * Mm + (sortedWorkers.Count * 9 * Mm) + 16 * Mm;
-            if (!config.ForzarSaltoPagina && finalTableY + 35 * Mm <= 190 * Mm && totalPaginas > 0)
-            {
-                // No sumamos pagsResumen
-            }
-            else
-            {
-                totalPaginas += pagsResumen;
-            }
-
-            if (totalPaginas == 0) totalPaginas = 1;
-
-            int pagNumGlobal = 1;
-
-            // --- FASE 1: RENDER DE TABLAS GANTT ---
-            foreach (var kvp in secuenciasPorAño.OrderBy(x => x.Key))
-            {
-                int year = kvp.Key;
-                var mesesSecuencia = kvp.Value.meses;
-                var fechasEjeX = kvp.Value.fechas;
-
-                foreach (var mStr in mesesSecuencia)
-                {
-                    var parts = mStr.Split('-');
-                    int y = int.Parse(parts[0]);
-                    int m = int.Parse(parts[1]);
-                    int diasMes = DateTime.DaysInMonth(y, m);
-
-                    PdfPage page = document.AddPage();
-                    page.Orientation = PageOrientation.Landscape;
-                    page.Size = PageSize.A4;
-
-                    using (XGraphics gfx = XGraphics.FromPdfPage(page))
-                    {
-                        DrawHeaderFooterPdf(gfx, page, datos.TituloPagina, year, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
-
-                        double colNameWidth = 42 * Mm;
-                        double tableWidth = page.Width.Value - 30 * Mm;
-                        double colDayWidth = (tableWidth - colNameWidth) / diasMes;
-                        double anchoDias = tableWidth - colNameWidth;
-
-                        double curY = 30 * Mm;
-
-                        XFont fontTitle = new XFont("Arial", 10.5, XFontStyleEx.Bold);
-                        XFont fontLabel = new XFont("Arial", 8.5, XFontStyleEx.Bold);
-                        XFont fontName = new XFont("Arial", 9, XFontStyleEx.Regular);
-
-                        // 1. Cabecera del Mes
-                        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(71, 85, 105)), 15 * Mm, curY, colNameWidth, 9 * Mm);
-                        gfx.DrawRectangle(penGray, 15 * Mm, curY, colNameWidth, 9 * Mm);
-                        gfx.DrawString("MES", fontTitle, XBrushes.White, new XRect(15 * Mm, curY, colNameWidth, 9 * Mm), XStringFormats.Center);
-
-                        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(71, 85, 105)), 15 * Mm + colNameWidth, curY, anchoDias, 9 * Mm);
-                        gfx.DrawRectangle(penGray, 15 * Mm + colNameWidth, curY, anchoDias, 9 * Mm);
-                        gfx.DrawString($"{nombresMeses[m].ToUpper()} {y}", fontTitle, XBrushes.White, new XRect(15 * Mm + colNameWidth, curY, anchoDias, 9 * Mm), XStringFormats.Center);
-
-                        curY += 9 * Mm;
-
-                        // 2. Cabecera de días
-                        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(148, 163, 184)), 15 * Mm, curY, colNameWidth, 8 * Mm);
-                        gfx.DrawRectangle(penGray, 15 * Mm, curY, colNameWidth, 8 * Mm);
-                        gfx.DrawString("TRABAJADOR", fontLabel, XBrushes.White, new XRect(15 * Mm + 2 * Mm, curY, colNameWidth, 8 * Mm), XStringFormats.CenterLeft);
-
-                        for (int d = 1; d <= diasMes; d++)
-                        {
-                            double x = 15 * Mm + colNameWidth + (d - 1) * colDayWidth;
-                            gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(148, 163, 184)), x, curY, colDayWidth, 8 * Mm);
-                            gfx.DrawRectangle(penGray, x, curY, colDayWidth, 8 * Mm);
-                            gfx.DrawString(d.ToString(), fontLabel, XBrushes.White, new XRect(x, curY, colDayWidth, 8 * Mm), XStringFormats.Center);
-                        }
-
-                        curY += 8 * Mm;
-
-                        // 3. Filas por cada Trabajador
-                        foreach (var w in sortedWorkers)
-                        {
-                            var info = datos.Trabajadores[w];
-
-                            gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(248, 250, 252)), 15 * Mm, curY, colNameWidth, 9 * Mm);
-                            gfx.DrawRectangle(penGray, 15 * Mm, curY, colNameWidth, 9 * Mm);
-                            gfx.DrawString(w, fontName, XBrushes.DarkSlateGray, new XRect(15 * Mm + 2 * Mm, curY, colNameWidth - 2 * Mm, 9 * Mm), XStringFormats.CenterLeft);
-
-                            for (int d = 1; d <= diasMes; d++)
-                            {
-                                double x = 15 * Mm + colNameWidth + (d - 1) * colDayWidth;
-                                string dateStr = $"{d:00}/{m:00}/{y}";
-
-                                DateTime date = new DateTime(y, m, d);
-                                bool esWeekend = (date.DayOfWeek == DayOfWeek.Saturday || date.DayOfWeek == DayOfWeek.Sunday);
-                                bool esFestivo = datos.Festivos.Contains(dateStr);
-                                bool esVacacion = info.Vacaciones.Contains(dateStr);
-
-                                XColor cellFill = XColors.White;
-                                bool isFilled = false;
-
-                                if (esVacacion)
-                                {
-                                    int quotaYear = (info.Imputaciones != null && info.Imputaciones.TryGetValue(dateStr, out int yVal)) ? yVal : y;
-                                    if (quotaYear != year)
-                                    {
-                                        cellFill = XColor.FromArgb(243, 232, 255); // Lavanda
-                                    }
-                                    else
-                                    {
-                                        cellFill = XColor.FromArgb(174, 214, 241); // Azul
-                                    }
-                                    isFilled = true;
-                                }
-                                else if (esFestivo || esWeekend)
-                                {
-                                    cellFill = XColor.FromArgb(241, 243, 245);
-                                    isFilled = true;
-                                }
-
-                                if (isFilled)
-                                {
-                                    gfx.DrawRectangle(new XSolidBrush(cellFill), x, curY, colDayWidth, 9 * Mm);
-                                }
-                                gfx.DrawRectangle(penGray, x, curY, colDayWidth, 9 * Mm);
-                            }
-
-                            curY += 9 * Mm;
-                        }
-
-                        // 4. Leyendas de la página
-                        curY += 6 * Mm;
-                        XFont fontLeyenda = new XFont("Arial", 9, XFontStyleEx.Regular);
-
-                        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(174, 214, 241)), 15 * Mm, curY, 8 * Mm, 5 * Mm);
-                        gfx.DrawRectangle(penGray, 15 * Mm, curY, 8 * Mm, 5 * Mm);
-                        gfx.DrawString("Vacaciones del cupo actual", fontLeyenda, XBrushes.SlateGray, new XPoint(25 * Mm, curY + 1 * Mm), XStringFormats.TopLeft);
-
-                        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(243, 232, 255)), 85 * Mm, curY, 8 * Mm, 5 * Mm);
-                        gfx.DrawRectangle(penGray, 85 * Mm, curY, 8 * Mm, 5 * Mm);
-                        gfx.DrawString("Vacaciones de otro cupo", fontLeyenda, XBrushes.SlateGray, new XPoint(95 * Mm, curY + 1 * Mm), XStringFormats.TopLeft);
-
-                        gfx.DrawRectangle(new XSolidBrush(XColor.FromArgb(241, 243, 245)), 170 * Mm, curY, 8 * Mm, 5 * Mm);
-                        gfx.DrawRectangle(penGray, 170 * Mm, curY, 8 * Mm, 5 * Mm);
-                        gfx.DrawString("Fin de semana / Festivos oficiales", fontLeyenda, XBrushes.SlateGray, new XPoint(180 * Mm, curY + 1 * Mm), XStringFormats.TopLeft);
-                    }
-                }
-            }
-
-            // --- FASE 2: RENDER DE RESUMEN CONSOLIDADO AL FINAL ---
-            double textY = 0;
-            PdfPage pageFinal = null!;
-            XGraphics gfxFinal = null!;
-            bool usarNuevaPaginaParaResumenGantt = config.ForzarSaltoPagina;
-
-            if (!usarNuevaPaginaParaResumenGantt && document.Pages.Count > 0)
-            {
-                pageFinal = document.Pages[document.Pages.Count - 1];
-                if (finalTableY + 30 * Mm <= 190 * Mm)
-                {
-                    textY = finalTableY;
-                    gfxFinal = XGraphics.FromPdfPage(pageFinal);
-                }
-                else
-                {
-                    usarNuevaPaginaParaResumenGantt = true;
-                }
-            }
-
-            if (usarNuevaPaginaParaResumenGantt || document.Pages.Count == 0)
-            {
-                pageFinal = document.AddPage();
-                pageFinal.Orientation = PageOrientation.Landscape;
-                pageFinal.Size = PageSize.A4;
-                gfxFinal = XGraphics.FromPdfPage(pageFinal);
-                DrawHeaderFooterPdf(gfxFinal, pageFinal, datos.TituloPagina, datos.Year, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
-                textY = 30 * Mm;
-            }
-
-            XFont fontFinalTitle = new XFont("Arial", 12.5, XFontStyleEx.Bold);
-            XFont fontFinalLabelBold = new XFont("Arial", 10, XFontStyleEx.Bold);
-            XFont fontFinalItalic = new XFont("Arial", 9, XFontStyleEx.Italic);
-
-            gfxFinal.DrawString("Cómputo Anual de Vacaciones (Días laborables netos y detalle):", fontFinalTitle, XBrushes.DarkSlateGray, new XPoint(15 * Mm, textY), XStringFormats.TopLeft);
-            textY += 10 * Mm;
-
-            foreach (var w in sortedWorkers)
-            {
-                var info = datos.Trabajadores[w];
-
-                List<string> consumosList = new List<string>();
-                bool cupoSuperado = false;
-                foreach (int y in añosAProcesar)
-                {
-                    int netos = RangoVacacionesHelper.ContarDiasConsumidos(info.Vacaciones, info.Imputaciones, datos.Festivos, y);
-                    int limite = info.DiasBase + info.DiasExtras;
-                    if (netos > limite) cupoSuperado = true;
-                    consumosList.Add($"{netos} de {limite} (en {y})");
-                }
-                string consumosStr = string.Join(", ", consumosList);
-                string excede = cupoSuperado ? " (¡Cupo superado en algún año!)" : "";
-
-                string rangosTexto = RangoVacacionesHelper.AgruparVacacionesEnTextoMultiano(info.Vacaciones, info.Imputaciones, datos.Festivos, datos.Year);
-
-                gfxFinal.DrawString($"- {w}: {consumosStr} días disfrutados{excede}.", fontFinalLabelBold, XBrushes.DarkSlateGray, new XPoint(18 * Mm, textY), XStringFormats.TopLeft);
-                textY += 4.5 * Mm;
-
-                gfxFinal.DrawString($"Detalle: {rangosTexto}", fontFinalItalic, XBrushes.Gray, new XPoint(25 * Mm, textY), XStringFormats.TopLeft);
-                textY += 8 * Mm;
-
-                if (textY > 180 * Mm)
-                {
-                    gfxFinal.Dispose(); // Liberar el recurso activo
-                    PdfPage extraPage = document.AddPage();
-                    extraPage.Orientation = PageOrientation.Landscape;
-                    extraPage.Size = PageSize.A4;
-                    gfxFinal = XGraphics.FromPdfPage(extraPage);
-                    DrawHeaderFooterPdf(gfxFinal, extraPage, datos.TituloPagina, datos.Year, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
-                    textY = 30 * Mm;
-                }
-            }
-
-            gfxFinal.Dispose(); // Liberar el recurso final
-            document.Save(path);
-        }
-
-        private static (List<string> mesesSecuencia, List<DateTime> fechasEjeX) ObtenerSecuenciaGanttPorAno(PlanVacaciones datos, int year)
-        {
-            var todasFechas = new List<DateTime>();
-            foreach (var kvp in datos.Trabajadores)
-            {
-                foreach (var fStr in kvp.Value.Vacaciones)
-                {
-                    if (DateTime.TryParseExact(fStr, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
-                    {
-                        int qYear = (kvp.Value.Imputaciones != null && kvp.Value.Imputaciones.TryGetValue(fStr, out int yVal)) ? yVal : d.Year;
-                        if (qYear == year)
-                        {
-                            todasFechas.Add(d);
-                        }
-                    }
-                }
-            }
-
-            DateTime minDate, maxDate;
-            if (todasFechas.Count > 0)
-            {
-                minDate = todasFechas.Min();
-                maxDate = todasFechas.Max();
-            }
-            else
-            {
-                minDate = new DateTime(year, 6, 1);
-                maxDate = new DateTime(year, 9, 30);
-            }
-
-            var mesesRango = new List<string>();
-            DateTime current = new DateTime(minDate.Year, minDate.Month, 1);
-            DateTime limit = new DateTime(maxDate.Year, maxDate.Month, 1);
-
-            while (current <= limit)
-            {
-                mesesRango.Add($"{current.Year}-{current.Month}");
-                current = current.AddMonths(1);
-            }
-
-            var fechasEjeX = new List<DateTime>();
-            foreach (var mStr in mesesRango)
-            {
-                var parts = mStr.Split('-');
-                int y = int.Parse(parts[0]);
-                int m = int.Parse(parts[1]);
-                int totalDias = DateTime.DaysInMonth(y, m);
-                for (int d = 1; d <= totalDias; d++)
-                {
-                    fechasEjeX.Add(new DateTime(y, m, d));
-                }
-            }
-
-            return (mesesRango, fechasEjeX);
-        }
-
-        #region Implementación de IPdfExportService
-
-        void IPdfExportService.ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años) => ExportarMensual(path, datos, config, años);
-        void IPdfExportService.ExportarGantt(string path, PlanVacaciones datos, AppConfig config, List<int> años) => ExportarGantt(path, datos, config, años);
-
-        #endregion
-
-        /// <summary>
-        /// Método estático privado para dibujar el encabezado y pie de página de las hojas PDF de forma consistente.
-        /// </summary>
-        private static void DrawHeaderFooterPdf(XGraphics gfx, PdfPage page, string titulo, int year, int pagNum, int totalPags, string piePagina)
-        {
-            double width = page.Width.Value;
-            double height = page.Height.Value;
-
-            XFont fontHeader = new XFont("Arial", 13, XFontStyleEx.Bold);
-            XFont fontHeaderSub = new XFont("Arial", 9.5, XFontStyleEx.Italic);
-            XFont fontFooter = new XFont("Arial", 8.5, XFontStyleEx.Regular);
-
-            // Título a la izquierda
-            gfx.DrawString($"{titulo} - {year}", fontHeader, XBrushes.DarkSlateGray, new XPoint(15 * Mm, 12 * Mm), XStringFormats.TopLeft);
-
-            // Fecha de generación a la derecha
-            string dateStr = DateTime.Now.ToString("dd/MM/yyyy");
-            gfx.DrawString($"Generado: {dateStr}", fontHeaderSub, XBrushes.Gray, new XPoint(width - 15 * Mm, 12 * Mm), XStringFormats.TopRight);
-
-            // Línea divisoria superior
-            XPen pen = new XPen(XColor.FromArgb(200, 200, 200), 0.4);
-            gfx.DrawLine(pen, 15 * Mm, 18 * Mm, width - 15 * Mm, 18 * Mm);
-
-            // Línea y textos del pie de página (footer)
-            gfx.DrawLine(pen, 15 * Mm, height - 15 * Mm, width - 15 * Mm, height - 15 * Mm);
-            gfx.DrawString(piePagina, fontFooter, XBrushes.Gray, new XPoint(15 * Mm, height - 11 * Mm), XStringFormats.TopLeft);
-            gfx.DrawString($"Página {pagNum} de {totalPags}", fontFooter, XBrushes.Gray, new XPoint(width - 15 * Mm, height - 11 * Mm), XStringFormats.TopRight);
-        }
-
-        /// <summary>
-        /// Devuelve las dos primeras letras de cada parte del nombre en mayúsculas como iniciales descriptivas.
-        /// </summary>
-        private static string ObtenerIniciales(string nombre)
-        {
-            var partes = nombre.Trim().Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
-            if (partes.Length >= 2)
-            {
-                return (partes[0][0].ToString() + partes[1][0].ToString()).ToUpper();
-            }
-            else if (partes.Length == 1 && partes[0].Length > 0)
-            {
-                return partes[0].Substring(0, Math.Min(2, partes[0].Length)).ToUpper();
-            }
-            return "";
         }
     }
 }

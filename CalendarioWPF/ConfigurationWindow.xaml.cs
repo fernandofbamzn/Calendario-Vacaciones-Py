@@ -100,6 +100,7 @@ namespace CalendarioWPF
         public ConfigurationWindow(PlanVacaciones datos, AppConfig config)
         {
             InitializeComponent();
+            this.Loaded += ConfigurationWindow_Loaded;
 
             _datos = datos;
             _config = config;
@@ -111,6 +112,29 @@ namespace CalendarioWPF
             };
 
             CargarDatosEnUI();
+        }
+
+        /// <summary>
+        /// Evento disparado al cargar la ventana. Inicializa la lista de regiones para la importación de festivos.
+        /// </summary>
+        private async void ConfigurationWindow_Loaded(object sender, RoutedEventArgs e)
+        {
+            var api = new OpenHolidaysApiService();
+            var regiones = await api.ObtenerRegionesAsync("ES");
+            
+            // Si falla la API y no trae regiones, añadimos un par por defecto
+            if (regiones.Count == 0)
+            {
+                regiones.Add("ES-MD", "Madrid");
+                regiones.Add("ES-CT", "Cataluña");
+                regiones.Add("ES-AN", "Andalucía");
+            }
+            
+            CbRegiones.ItemsSource = regiones;
+            if (regiones.Count > 0)
+            {
+                CbRegiones.SelectedIndex = 0;
+            }
         }
 
         /// <summary>
@@ -186,6 +210,9 @@ namespace CalendarioWPF
 
         #region Pestaña Personal
 
+        /// <summary>
+        /// Añade un nuevo trabajador a la lista si el nombre es válido y no existe.
+        /// </summary>
         private void BtnAddTrabajador_Click(object sender, RoutedEventArgs e)
         {
             string nombre = TxtNuevoTrabajador.Text.Trim();
@@ -207,6 +234,9 @@ namespace CalendarioWPF
             TxtNuevoTrabajador.Text = "";
         }
 
+        /// <summary>
+        /// Elimina los trabajadores seleccionados en el DataGrid.
+        /// </summary>
         private void BtnRemoveTrabajador_Click(object sender, RoutedEventArgs e)
         {
             var seleccionados = DgTrabajadores.SelectedItems.Cast<TrabajadorRow>().ToList();
@@ -216,6 +246,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Asigna el valor especificado de días base a los trabajadores seleccionados.
+        /// </summary>
         private void BtnLoteAsignarBase_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtLoteBase.Text, out int val) && val >= 0)
@@ -227,6 +260,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Suma el valor especificado a los días base de los trabajadores seleccionados.
+        /// </summary>
         private void BtnLoteSumarBase_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtLoteBase.Text, out int val))
@@ -238,6 +274,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Resta el valor especificado de los días base de los trabajadores seleccionados.
+        /// </summary>
         private void BtnLoteRestarBase_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtLoteBase.Text, out int val))
@@ -249,6 +288,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Asigna el valor especificado de días extra a los trabajadores seleccionados.
+        /// </summary>
         private void BtnLoteAsignarExtras_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtLoteExtras.Text, out int val) && val >= 0)
@@ -260,6 +302,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Suma el valor especificado a los días extra de los trabajadores seleccionados.
+        /// </summary>
         private void BtnLoteSumarExtras_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtLoteExtras.Text, out int val))
@@ -271,6 +316,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Resta el valor especificado de los días extra de los trabajadores seleccionados.
+        /// </summary>
         private void BtnLoteRestarExtras_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtLoteExtras.Text, out int val))
@@ -286,6 +334,9 @@ namespace CalendarioWPF
 
         #region Pestaña Festivos
 
+        /// <summary>
+        /// Añade la fecha seleccionada en el DatePicker a la lista de festivos.
+        /// </summary>
         private void BtnAddFestivo_Click(object sender, RoutedEventArgs e)
         {
             if (DpNuevoFestivo.SelectedDate.HasValue)
@@ -299,6 +350,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Elimina los festivos seleccionados en el DataGrid.
+        /// </summary>
         private void BtnRemoveFestivo_Click(object sender, RoutedEventArgs e)
         {
             var seleccionados = DgFestivos.SelectedItems.Cast<FestivoRow>().ToList();
@@ -312,11 +366,17 @@ namespace CalendarioWPF
 
         #region Pestaña Exportación
 
+        /// <summary>
+        /// Marca todas las casillas de meses para incluirlos en la exportación.
+        /// </summary>
         private void BtnSelectAllMeses_Click(object sender, RoutedEventArgs e)
         {
             foreach (var chk in _chkMeses) chk.IsChecked = true;
         }
 
+        /// <summary>
+        /// Desmarca todas las casillas de meses en la configuración de exportación.
+        /// </summary>
         private void BtnDeselectAllMeses_Click(object sender, RoutedEventArgs e)
         {
             foreach (var chk in _chkMeses) chk.IsChecked = false;
@@ -326,6 +386,9 @@ namespace CalendarioWPF
 
         #region Acciones principales
 
+        /// <summary>
+        /// Procesa los cambios realizados en la ventana y los aplica a la configuración y plan de vacaciones.
+        /// </summary>
         private void BtnAceptar_Click(object sender, RoutedEventArgs e)
         {
             // --- Aplicar cambios de Trabajadores ---
@@ -447,6 +510,9 @@ namespace CalendarioWPF
             Close();
         }
 
+        /// <summary>
+        /// Cierra la ventana sin aplicar los cambios.
+        /// </summary>
         private void BtnCancelar_Click(object sender, RoutedEventArgs e)
         {
             Aceptado = false;
@@ -454,6 +520,9 @@ namespace CalendarioWPF
             Close();
         }
 
+        /// <summary>
+        /// Disminuye en uno el año activo del plan de vacaciones.
+        /// </summary>
         private void BtnDecActiveYear_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtAnoActivo.Text, out int y) && y > 1900)
@@ -462,6 +531,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Incrementa en uno el año activo del plan de vacaciones.
+        /// </summary>
         private void BtnIncActiveYear_Click(object sender, RoutedEventArgs e)
         {
             if (int.TryParse(TxtAnoActivo.Text, out int y) && y < 2100)
@@ -470,6 +542,9 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Obtiene una lista consolidada y ordenada de todos los años que contienen datos (vacaciones o festivos).
+        /// </summary>
         private List<int> ObtenerTodosLosAnosConDatos()
         {
             var anos = new HashSet<int> { _datos.Year, DateTime.Today.Year };
@@ -492,6 +567,53 @@ namespace CalendarioWPF
                 }
             }
             return anos.OrderBy(y => y).ToList();
+        }
+
+        /// <summary>
+        /// Importa los festivos oficiales de la región seleccionada para el año activo desde OpenHolidays API.
+        /// </summary>
+        private async void BtnImportarFestivosCCAA_Click(object sender, RoutedEventArgs e)
+        {
+            if (CbRegiones.SelectedValue == null) return;
+            
+            string isoCode = CbRegiones.SelectedValue.ToString();
+            string nombreCCAA = ((KeyValuePair<string, string>)CbRegiones.SelectedItem).Value;
+
+            BtnImportarFestivosCCAA_Click_UIStatus(false, "Descargando...");
+
+            var api = new OpenHolidaysApiService();
+            var nuevosFestivos = await api.ObtenerFestivosAsync(isoCode, _datos.Year);
+
+            BtnImportarFestivosCCAA_Click_UIStatus(true, "📥 Importar Festivos");
+
+            if (nuevosFestivos.Count > 0)
+            {
+                int agregados = 0;
+                foreach (var f in nuevosFestivos)
+                {
+                    if (!Festivos.Any(existing => existing.Fecha == f))
+                    {
+                        Festivos.Add(new FestivoRow { Fecha = f });
+                        agregados++;
+                    }
+                }
+
+                MessageBox.Show($"Se han importado {agregados} nuevos festivos para {nombreCCAA} ({_datos.Year}).", 
+                    "Importación Completada", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+            else
+            {
+                MessageBox.Show($"No se pudieron obtener los festivos para {nombreCCAA} o la lista está vacía.", 
+                    "Información", MessageBoxButton.OK, MessageBoxImage.Warning);
+            }
+        }
+
+        /// <summary>
+        /// Actualiza el estado visual de la interfaz durante la importación de festivos.
+        /// </summary>
+        private void BtnImportarFestivosCCAA_Click_UIStatus(bool enabled, string content)
+        {
+            CbRegiones.IsEnabled = enabled;
         }
 
         #endregion
