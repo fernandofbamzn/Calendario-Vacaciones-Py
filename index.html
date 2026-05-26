@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestor de Vacaciones Pro - Web</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- BARRA SUPERIOR -->
+        <header class="app-header">
+            <div class="logo-area">
+                <span class="logo-icon">📅</span>
+                <input type="text" id="page-title-input" class="editable-title-input" placeholder="Planificación de Vacaciones...">
+            </div>
+            <div class="header-actions">
+                <div class="year-selector">
+                    <button id="btn-prev-year" class="btn-icon">◀</button>
+                    <span id="label-year" class="year-label">2026</span>
+                    <button id="btn-next-year" class="btn-icon">▶</button>
+                </div>
+                <button id="btn-ayuda" class="btn btn-secondary">❓ Ayuda</button>
+            </div>
+        </header>
+
+        <!-- NAVEGACIÓN Y MENÚS DE DATOS -->
+        <nav class="data-nav">
+            <button id="btn-import-unificado" class="btn btn-menu">📂 Importar Datos (JSON/CSV)</button>
+            <div class="dropdown">
+                <button class="btn btn-menu">💾 Exportar Datos ▾</button>
+                <div class="dropdown-content">
+                    <a href="#" onclick="exportData('trabajadores', 'json')">👥 JSON - Configuración de Trabajadores</a>
+                    <a href="#" onclick="exportData('trabajadores', 'csv')">👥 CSV - Configuración de Trabajadores</a>
+                    <hr class="menu-divider">
+                    <a href="#" onclick="exportData('festivos', 'json')">🚩 JSON - Festivos Oficiales</a>
+                    <a href="#" onclick="exportData('festivos', 'csv')">🚩 CSV - Festivos Oficiales</a>
+                    <hr class="menu-divider">
+                    <a href="#" onclick="exportData('vacaciones', 'json')">🏖️ JSON - Vacaciones Asignadas</a>
+                    <a href="#" onclick="exportData('vacaciones', 'csv')">🏖️ CSV - Vacaciones Asignadas</a>
+                    <hr class="menu-divider">
+                    <a href="#" onclick="exportarGanttAExcel()">📊 Excel - Calendario Gantt</a>
+                    <a href="#" onclick="exportarGanttACSV()">📊 CSV - Calendario Gantt</a>
+                </div>
+            </div>
+            <button id="btn-limpiar-datos" class="btn btn-danger">🧹 Limpiar Todo</button>
+            
+            <!-- INPUT FILE OCULTO UNIFICADO PARA IMPORTAR -->
+            <input type="file" id="import-file-unificado" style="display: none;" accept=".json,.csv">
+        </nav>
+
+        <!-- CUERPO PRINCIPAL -->
+        <main class="app-body">
+            <!-- PANEL LATERAL DE CONTROLES (IZQUIERDA) -->
+            <aside class="control-panel">
+                <!-- SECCIÓN TRABAJADORES -->
+                <section class="card">
+                    <h2>👥 Gestión de Personal</h2>
+                    <div class="form-group">
+                        <label for="new-worker-name">Nuevo trabajador:</label>
+                        <div class="input-with-btn">
+                            <input type="text" id="new-worker-name" placeholder="Nombre completo...">
+                            <button id="btn-add-worker" class="btn btn-primary">Añadir</button>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="select-worker">Trabajador Activo:</label>
+                        <div class="input-with-btn">
+                            <select id="select-worker">
+                                <option value="" disabled selected>Cargue o añada personal...</option>
+                            </select>
+                            <button id="btn-delete-worker" class="btn btn-danger">Eliminar</button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- MODO DE EDICIÓN -->
+                <section class="card">
+                    <h2>✏️ Modo de Edición</h2>
+                    <div class="radio-group">
+                        <label class="radio-container">
+                            <input type="radio" name="edit-mode" value="vacaciones" checked>
+                            <span class="radio-checkmark"></span>
+                            Marcar Vacaciones
+                        </label>
+                        <label class="radio-container">
+                            <input type="radio" name="edit-mode" value="festivos">
+                            <span class="radio-checkmark"></span>
+                            Marcar Festivos Oficiales
+                        </label>
+                    </div>
+                </section>
+
+                <!-- CONTROL DE CUPO -->
+                <section id="quota-card" class="card">
+                    <h2>📊 Cupo de Vacaciones</h2>
+                    <div class="quota-inputs">
+                        <div class="form-group-inline">
+                            <label for="days-base">Días Base:</label>
+                            <input type="number" id="days-base" min="0" max="100" value="22">
+                        </div>
+                        <div class="form-group-inline">
+                            <label for="days-extras">Días Extras:</label>
+                            <input type="number" id="days-extras" min="0" max="100" value="0">
+                        </div>
+                    </div>
+                    <!-- Barra de progreso visual -->
+                    <div class="progress-container">
+                        <div class="progress-bar-bg">
+                            <div id="progress-bar-fill" class="progress-bar-fill"></div>
+                        </div>
+                        <div id="label-quota-summary" class="quota-summary">
+                            Consumidos: 0 / 22 (Quedan: 22)
+                        </div>
+                    </div>
+                </section>
+
+                <!-- RESUMEN / LEYENDA -->
+                <section class="card summary-card">
+                    <h2>📋 Resumen de Datos</h2>
+                    <div id="txt-resumen" class="resumen-console">
+                        Cargue datos para ver el resumen...
+                    </div>
+                </section>
+            </aside>
+
+            <!-- PANEL DE CALENDARIOS Y VISTAS (DERECHA) -->
+            <section class="visualizer-panel">
+                <!-- TABS DE NAVEGACIÓN DE VISTAS -->
+                <div class="view-tabs">
+                    <button id="tab-calendar" class="tab-btn active">📅 Vista Calendario</button>
+                    <button id="tab-gantt" class="tab-btn">📊 Vista Tabla Gantt</button>
+                    <div class="tab-actions">
+                        <button id="btn-pdf-mensual" class="btn btn-accent">📥 PDF Mensual</button>
+                        <button id="btn-pdf-gantt" class="btn btn-accent">📥 PDF Gantt</button>
+                        <button id="btn-excel-gantt" class="btn btn-accent" onclick="exportarGanttAExcel()">📥 Excel Gantt</button>
+                    </div>
+                </div>
+
+                <!-- CONTENEDOR DE LA VISTA CALENDARIO -->
+                <div id="view-calendar-container" class="view-content active">
+                    <div class="instructions-banner">
+                        💡 Puedes marcar rangos de días haciendo <strong>click y arrastrando</strong> en los calendarios.
+                    </div>
+                    <!-- GRID DE MESES -->
+                    <div id="months-grid" class="months-grid">
+                        <!-- Generados por script -->
+                    </div>
+                    <!-- RESUMEN EN TEXTO DE VACACIONES -->
+                    <div id="panel-vacaciones-texto-container" class="card text-vacations-card">
+                        <h2>🏖️ Detalle Textual de Vacaciones del Personal</h2>
+                        <div id="txt-vacaciones-texto" class="text-vacations-list">
+                            Cargue datos para ver los rangos...
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CONTENEDOR DE LA VISTA GANTT -->
+                <div id="view-gantt-container" class="view-content">
+                    <div class="gantt-scroll-wrapper">
+                        <div id="gantt-table-container" class="gantt-table-container">
+                            <!-- Generado dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- MODAL DE AYUDA -->
+    <div id="modal-help" class="modal">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2>📖 Guía de Uso - Gestor de Vacaciones Pro</h2>
+            <div class="modal-body">
+                <h3>1. Gestión de Personal</h3>
+                <p>Escribe el nombre del empleado en "Nuevo trabajador" y pulsa "Añadir". Puedes importar configuraciones previas desde el menú "Importar Datos".</p>
+                
+                <h3>2. Modos de Edición</h3>
+                <p><strong>Marcar Vacaciones:</strong> Selecciona al trabajador activo y pinta en el calendario sus vacaciones.</p>
+                <p><strong>Marcar Festivos Oficiales:</strong> Pinta directamente los festivos. Se guardan globalmente y no computan en las vacaciones de ningún trabajador.</p>
+                
+                <h3>3. Click y Arrastre (Drag-to-select)</h3>
+                <p>Haz clic en una celda de día y arrastra el ratón para seleccionar un rango continuo de fechas. Si arrastras partiendo de un día ya marcado, el sistema borrará los días que toques.</p>
+                
+                <h3>4. Control de Cupos</h3>
+                <p>Asigna Días Base y Extras. El indicador de barra de progreso se volverá de color rojo si se excede el cupo disponible. Los fines de semana y festivos oficiales se excluyen de forma automática del consumo de vacaciones.</p>
+                
+                <h3>5. Exportar y Reportes PDF</h3>
+                <p>Guarda tu trabajo en JSON/CSV a través del menú superior. Pulsa "PDF Mensual" para generar el calendario en formato vertical o "PDF Gantt" para el formato horizontal paginado por meses.</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Elemento para tooltip flotante dinámico -->
+    <div id="tooltip-flotante" class="tooltip-flotante"></div>
+
+    <script src="jspdf.min.js"></script>
+    <script src="jspdf.plugin.autotable.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
