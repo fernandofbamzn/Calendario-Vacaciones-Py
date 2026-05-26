@@ -369,7 +369,7 @@ namespace CalendarioWPF.Services
                     string consumosStr = $"{netos} de {limite} (en {quotaYear})";
                     string excede = netos > limite ? " (¡Cupo superado!)" : "";
 
-                    string rangosTexto = RangoVacacionesHelper.AgruparVacacionesEnTextoMultiaño(info.Vacaciones, info.Imputaciones, datos.Festivos, quotaYear);
+                    string rangosTexto = RangoVacacionesHelper.AgruparVacacionesEnTextoMultiano(info.Vacaciones, info.Imputaciones, datos.Festivos, quotaYear);
 
                     gfx2.DrawString($"- {w}: {consumosStr} días consumidos{excede}.", fontLabelBold, XBrushes.DarkSlateGray, new XPoint(18 * Mm, textY), XStringFormats.TopLeft);
                     textY += 4.5 * Mm;
@@ -807,7 +807,7 @@ namespace CalendarioWPF.Services
                 string consumosStr = string.Join(", ", consumosList);
                 string excede = cupoSuperado ? " (¡Cupo superado en algún año!)" : "";
 
-                string rangosTexto = RangoVacacionesHelper.AgruparVacacionesEnTextoMultiaño(info.Vacaciones, info.Imputaciones, datos.Festivos, datos.Year);
+                string rangosTexto = RangoVacacionesHelper.AgruparVacacionesEnTextoMultiano(info.Vacaciones, info.Imputaciones, datos.Festivos, datos.Year);
 
                 gfxFinal.DrawString($"- {w}: {consumosStr} días disfrutados{excede}.", fontFinalLabelBold, XBrushes.DarkSlateGray, new XPoint(18 * Mm, textY), XStringFormats.TopLeft);
                 textY += 4.5 * Mm;
