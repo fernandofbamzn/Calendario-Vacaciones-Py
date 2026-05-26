@@ -218,7 +218,7 @@ namespace CalendarioWPF.Services
             }
             ranges.Add(currentRange);
 
-            string[] nombresMeses = { "", "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
+            string[] nombresMeses = {  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" };
 
             var rangesText = ranges.Select(range => {
                 var start = range[0];

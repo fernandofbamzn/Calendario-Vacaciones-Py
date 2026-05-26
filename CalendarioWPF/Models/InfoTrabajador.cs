@@ -17,6 +17,13 @@ namespace CalendarioWPF.Models
         public List<string> Vacaciones { get; set; } = new();
 
         /// <summary>
+        /// Departamento, grupo o sección a la que pertenece el trabajador.
+        /// Útil para soporte multiempresa o de filtrado.
+        /// </summary>
+        [JsonPropertyName("departamento")]
+        public string Departamento { get; set; } = "General";
+
+        /// <summary>
         /// Número de días de vacaciones base anuales del trabajador (excluye días extra).
         /// Por defecto: 22 días laborables.
         /// </summary>

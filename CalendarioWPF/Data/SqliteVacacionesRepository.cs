@@ -46,6 +46,7 @@ namespace CalendarioWPF.Data
             {
                 var info = new InfoTrabajador
                 {
+                    Departamento = t.Departamento,
                     DiasBase = t.DiasBase,
                     DiasExtras = t.DiasExtras
                 };
@@ -90,6 +91,7 @@ namespace CalendarioWPF.Data
                 var tEntity = new TrabajadorEntity
                 {
                     Nombre = kvp.Key,
+                    Departamento = info.Departamento,
                     DiasBase = info.DiasBase,
                     DiasExtras = info.DiasExtras,
                     Vacaciones = info.Vacaciones.Select(v => new VacacionEntity { Fecha = v }).ToList(),

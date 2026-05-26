@@ -11,6 +11,12 @@ namespace CalendarioWPF.Models
     public class AppConfig
     {
         /// <summary>
+        /// Método de persistencia activo para los datos. Valores: "JSON" o "SQLite".
+        /// </summary>
+        [JsonPropertyName("tipo_persistencia")]
+        public string TipoPersistencia { get; set; } = "SQLite";
+
+        /// <summary>
         /// Texto del pie de página que aparece al pie de cada hoja en los reportes PDF exportados.
         /// </summary>
         [JsonPropertyName("pie_pagina_pdf")]

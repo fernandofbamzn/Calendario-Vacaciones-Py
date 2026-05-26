@@ -9,6 +9,7 @@ namespace CalendarioWPF.Data.Entities
         public PlanEntity Plan { get; set; } = null!;
 
         public string Nombre { get; set; } = string.Empty;
+        public string Departamento { get; set; } = "General";
         public int DiasBase { get; set; }
         public int DiasExtras { get; set; }
 

@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Threading;
 using CalendarioWPF.Services;
 using CalendarioWPF.Models;
+using CalendarioWPF.Data;
 
 namespace CalendarioWPF
 {
@@ -179,7 +180,14 @@ namespace CalendarioWPF
         {
             try
             {
-                _datos = DataManager.CargarDatos();
+                var repo = RepositoryFactory.GetRepository();
+                int currentYear = DateTime.Today.Year;
+                _datos = repo.CargarPlan(currentYear);
+
+                if (_datos.Trabajadores.Count == 0 && string.IsNullOrEmpty(_datos.TituloPagina))
+                {
+                    _datos = DataManager.InicializarDatosVacios();
+                }
             }
             catch (Exception ex)
             {
@@ -203,7 +211,8 @@ namespace CalendarioWPF
             try
             {
                 _datos.TituloPagina = PageTitleInput.Text.Trim();
-                DataManager.GuardarDatos(_datos);
+                var repo = RepositoryFactory.GetRepository();
+                repo.GuardarPlan(_datos);
             }
             catch (Exception ex)
             {

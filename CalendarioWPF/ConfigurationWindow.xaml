@@ -110,8 +110,9 @@
                               SelectionMode="Extended" SelectionUnit="FullRow">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Nombre del Trabajador" Binding="{Binding Nombre}" Width="*" IsReadOnly="False"/>
-                            <DataGridTextColumn Header="Días Base" Binding="{Binding DiasBase}" Width="100" IsReadOnly="False"/>
-                            <DataGridTextColumn Header="Días Extras" Binding="{Binding DiasExtras}" Width="100" IsReadOnly="False"/>
+                            <DataGridTextColumn Header="Departamento" Binding="{Binding Departamento}" Width="150" IsReadOnly="False"/>
+                            <DataGridTextColumn Header="Días Base" Binding="{Binding DiasBase}" Width="80" IsReadOnly="False"/>
+                            <DataGridTextColumn Header="Días Extras" Binding="{Binding DiasExtras}" Width="80" IsReadOnly="False"/>
                             <DataGridTextColumn Header="Vacaciones Usadas" Binding="{Binding VacacionesUsadas}" Width="130" IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
@@ -209,6 +210,13 @@
                         <!-- Sección: Metadatos PDF -->
                         <TextBlock Text="📝 Metadatos de Exportación PDF" FontSize="14" FontWeight="Bold" 
                                     Foreground="{StaticResource ColorTextMain}" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Método de Persistencia de Datos:" FontSize="12" FontWeight="SemiBold" 
+                                   Foreground="{StaticResource ColorTextMuted}" Margin="0,0,0,4"/>
+                        <ComboBox x:Name="CbPersistencia" Height="34" FontSize="13" Margin="0,0,0,14">
+                            <ComboBoxItem Content="SQLite (Recomendado para multiempresa)"/>
+                            <ComboBoxItem Content="JSON (Modo legado)"/>
+                        </ComboBox>
 
                         <TextBlock Text="Título del Calendario / Página:" FontSize="12" FontWeight="SemiBold" 
                                    Foreground="{StaticResource ColorTextMuted}" Margin="0,0,0,4"/>

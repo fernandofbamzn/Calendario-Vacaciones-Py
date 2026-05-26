@@ -16,6 +16,7 @@ namespace CalendarioWPF
     public class TrabajadorRow : INotifyPropertyChanged
     {
         private string _nombre = "";
+        private string _departamento = "General";
         private int _diasBase = 22;
         private int _diasExtras = 0;
         private int _vacacionesUsadas = 0;
@@ -24,6 +25,12 @@ namespace CalendarioWPF
         {
             get => _nombre;
             set { _nombre = value; OnPropertyChanged(nameof(Nombre)); }
+        }
+
+        public string Departamento
+        {
+            get => _departamento;
+            set { _departamento = value; OnPropertyChanged(nameof(Departamento)); }
         }
 
         public int DiasBase
@@ -151,6 +158,7 @@ namespace CalendarioWPF
                 {
                     Nombre = kvp.Key,
                     NombreOriginal = kvp.Key,
+                    Departamento = kvp.Value.Departamento,
                     DiasBase = kvp.Value.DiasBase,
                     DiasExtras = kvp.Value.DiasExtras,
                     VacacionesUsadas = usados
@@ -177,6 +185,7 @@ namespace CalendarioWPF
             DgFestivos.ItemsSource = Festivos;
 
             // --- Pestaña Exportación ---
+            CbPersistencia.SelectedIndex = _config.TipoPersistencia == "SQLite" ? 0 : 1;
             TxtTituloCalendario.Text = _datos.TituloPagina;
             TxtPiePagina.Text = _config.PiePaginaPdf;
             CbOrientacion.SelectedIndex = _config.OrientacionPdf == "Landscape" ? 1 : 0;
@@ -227,6 +236,7 @@ namespace CalendarioWPF
             {
                 Nombre = nombre,
                 NombreOriginal = "", // Vacío indica que es nuevo
+                Departamento = "General",
                 DiasBase = 22,
                 DiasExtras = 0,
                 VacacionesUsadas = 0
@@ -416,13 +426,15 @@ namespace CalendarioWPF
                     {
                         var info = _datos.Trabajadores[row.NombreOriginal];
                         _datos.Trabajadores.Remove(row.NombreOriginal);
+                        info.Departamento = row.Departamento;
                         info.DiasBase = row.DiasBase;
                         info.DiasExtras = row.DiasExtras;
                         _datos.Trabajadores[row.Nombre] = info;
                     }
                     else
                     {
-                        // Solo actualizar días
+                        // Solo actualizar datos
+                        _datos.Trabajadores[row.Nombre].Departamento = row.Departamento;
                         _datos.Trabajadores[row.Nombre].DiasBase = row.DiasBase;
                         _datos.Trabajadores[row.Nombre].DiasExtras = row.DiasExtras;
                     }
@@ -435,6 +447,7 @@ namespace CalendarioWPF
                         _datos.Trabajadores[row.Nombre] = new InfoTrabajador
                         {
                             Vacaciones = new List<string>(),
+                            Departamento = row.Departamento,
                             DiasBase = row.DiasBase,
                             DiasExtras = row.DiasExtras
                         };
@@ -463,6 +476,7 @@ namespace CalendarioWPF
             }
 
             // --- Aplicar cambios de Configuración ---
+            _config.TipoPersistencia = CbPersistencia.SelectedIndex == 0 ? "SQLite" : "JSON";
             _datos.TituloPagina = TxtTituloCalendario.Text.Trim();
             _config.PiePaginaPdf = TxtPiePagina.Text.Trim();
             _config.OrientacionPdf = CbOrientacion.SelectedIndex == 1 ? "Landscape" : "Portrait";
