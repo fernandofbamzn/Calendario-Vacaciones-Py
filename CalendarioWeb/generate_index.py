@@ -1,105 +1,7 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calendario de Vacaciones</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
-    <style>
-        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
-        .cursor-pointer { cursor: pointer; }
-        .day-cell { transition: all 0.1s ease; user-select: none; }
-        .day-cell:hover { opacity: 0.8; transform: scale(0.98); }
-        .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
-        .text-truncate-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-        
-        .nav-tabs .nav-link { color: #495057; cursor: pointer; }
-        .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
-    </style>
-    <!-- Carga de librerías JS -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-    <script src="https://unpkg.com/htm"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
-</head>
-<body class="bg-light">
-    <div id="root"></div>
+import os
+import re
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
-
-    <script>
-        const html = htm.bind(React.createElement);
-        const { useState, useEffect, useMemo, useRef, Fragment } = React;
-
-        const COMUNIDADES = [
-            { id: "ES-AN", name: "Andalucía" }, { id: "ES-AR", name: "Aragón" }, { id: "ES-AS", name: "Asturias" },
-            { id: "ES-CB", name: "Cantabria" }, { id: "ES-CE", name: "Ceuta" }, { id: "ES-CL", name: "Castilla y León" },
-            { id: "ES-CM", name: "Castilla-La Mancha" }, { id: "ES-CN", name: "Canarias" }, { id: "ES-CT", name: "Cataluña" },
-            { id: "ES-EX", name: "Extremadura" }, { id: "ES-GA", name: "Galicia" }, { id: "ES-IB", name: "Islas Baleares" },
-            { id: "ES-MC", name: "Murcia" }, { id: "ES-MD", name: "Comunidad de Madrid" }, { id: "ES-ML", name: "Melilla" },
-            { id: "ES-NC", name: "Navarra" }, { id: "ES-PV", name: "País Vasco" }, { id: "ES-RI", name: "La Rioja" },
-            { id: "ES-VC", name: "Comunidad Valenciana" }
-        ];
-
-        const DEFAULT_CONFIG = {
-            titulo_pagina: "Planificación de Vacaciones",
-            year: new Date().getFullYear(),
-            festivos: [],
-            trabajadores: {},
-            comunidadAutonoma: 'ES-MD',
-            pie_pagina_pdf: "Gestor de Vacaciones Pro",
-            orientacion_pdf: "Portrait",
-            ocultar_computo_gantt: false,
-            meses_a_mostrar: [6, 7, 8, 9],
-            ocultar_meses_sin_dias: false,
-            forzar_salto_pagina: true
-        };
-
-        class StorageService {
-            static STORAGE_KEY = 'CalendarioVacacionesData';
-            static loadData() {
-                const data = localStorage.getItem(this.STORAGE_KEY);
-                if (data) {
-                    try {
-                        const parsed = JSON.parse(data);
-                        return { ...DEFAULT_CONFIG, ...parsed };
-                    } catch(e) { console.error(e); }
-                }
-                return { ...DEFAULT_CONFIG };
-            }
-            static saveData(data) {
-                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
-            }
-            static exportJson(data) {
-                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
-                const a = document.createElement('a'); a.href = dataStr; a.download = `datos_vacaciones_${data.year}.json`; a.click();
-            }
-        }
-
-        class HolidayService {
-            static async fetchHolidays(subdivisionCode, year) {
-                try {
-                    const start = `${year}-01-01`; const end = `${year}-12-31`;
-                    let url = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=ES&languageIsoCode=ES&validFrom=${start}&validTo=${end}&subdivisionCode=${subdivisionCode}`;
-                    const res = await fetch(url);
-                    if (!res.ok) throw new Error("Failed fetch");
-                    const data = await res.json();
-                    const festivos = [];
-                    data.forEach(h => {
-                        const p = h.startDate.split("-");
-                        festivos.push(`${p[2]}/${p[1]}/${p[0]}`);
-                    });
-                    return festivos;
-                } catch (e) {
-                    console.error(e);
-                    return [];
-                }
-            }
-        }
-
-        
+pdf_logic_str = r"""
 function obtenerIniciales(nombre) {
     const partes = nombre.trim().split(/\s+/);
     if (partes.length >= 2) return (partes[0][0] + partes[1][0]).toUpperCase();
@@ -546,7 +448,110 @@ class ExportService {
         const a = document.createElement('a'); a.href = dataStr; a.download = `vacaciones_${trabajador}.json`; a.click();
     }
 }
+"""
 
+html_template = r"""<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calendario de Vacaciones</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <style>
+        body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; }
+        .cursor-pointer { cursor: pointer; }
+        .day-cell { transition: all 0.1s ease; user-select: none; }
+        .day-cell:hover { opacity: 0.8; transform: scale(0.98); }
+        .month-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; text-align: center; }
+        .text-truncate-2 { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+        
+        .nav-tabs .nav-link { color: #495057; cursor: pointer; }
+        .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
+    </style>
+    <!-- Carga de librerías JS -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/htm"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.1/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body class="bg-light">
+    <div id="root"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+
+    <script>
+        const html = htm.bind(React.createElement);
+        const { useState, useEffect, useMemo, useRef, Fragment } = React;
+
+        const COMUNIDADES = [
+            { id: "ES-AN", name: "Andalucía" }, { id: "ES-AR", name: "Aragón" }, { id: "ES-AS", name: "Asturias" },
+            { id: "ES-CB", name: "Cantabria" }, { id: "ES-CE", name: "Ceuta" }, { id: "ES-CL", name: "Castilla y León" },
+            { id: "ES-CM", name: "Castilla-La Mancha" }, { id: "ES-CN", name: "Canarias" }, { id: "ES-CT", name: "Cataluña" },
+            { id: "ES-EX", name: "Extremadura" }, { id: "ES-GA", name: "Galicia" }, { id: "ES-IB", name: "Islas Baleares" },
+            { id: "ES-MC", name: "Murcia" }, { id: "ES-MD", name: "Comunidad de Madrid" }, { id: "ES-ML", name: "Melilla" },
+            { id: "ES-NC", name: "Navarra" }, { id: "ES-PV", name: "País Vasco" }, { id: "ES-RI", name: "La Rioja" },
+            { id: "ES-VC", name: "Comunidad Valenciana" }
+        ];
+
+        const DEFAULT_CONFIG = {
+            titulo_pagina: "Planificación de Vacaciones",
+            year: new Date().getFullYear(),
+            festivos: [],
+            trabajadores: {},
+            comunidadAutonoma: 'ES-MD',
+            pie_pagina_pdf: "Gestor de Vacaciones Pro",
+            orientacion_pdf: "Portrait",
+            ocultar_computo_gantt: false,
+            meses_a_mostrar: [6, 7, 8, 9],
+            ocultar_meses_sin_dias: false,
+            forzar_salto_pagina: true
+        };
+
+        class StorageService {
+            static STORAGE_KEY = 'CalendarioVacacionesData';
+            static loadData() {
+                const data = localStorage.getItem(this.STORAGE_KEY);
+                if (data) {
+                    try {
+                        const parsed = JSON.parse(data);
+                        return { ...DEFAULT_CONFIG, ...parsed };
+                    } catch(e) { console.error(e); }
+                }
+                return { ...DEFAULT_CONFIG };
+            }
+            static saveData(data) {
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data));
+            }
+            static exportJson(data) {
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+                const a = document.createElement('a'); a.href = dataStr; a.download = `datos_vacaciones_${data.year}.json`; a.click();
+            }
+        }
+
+        class HolidayService {
+            static async fetchHolidays(subdivisionCode, year) {
+                try {
+                    const start = `${year}-01-01`; const end = `${year}-12-31`;
+                    let url = `https://openholidaysapi.org/PublicHolidays?countryIsoCode=ES&languageIsoCode=ES&validFrom=${start}&validTo=${end}&subdivisionCode=${subdivisionCode}`;
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error("Failed fetch");
+                    const data = await res.json();
+                    const festivos = [];
+                    data.forEach(h => {
+                        const p = h.startDate.split("-");
+                        festivos.push(`${p[2]}/${p[1]}/${p[0]}`);
+                    });
+                    return festivos;
+                } catch (e) {
+                    console.error(e);
+                    return [];
+                }
+            }
+        }
+
+        #PDF_LOGIC_HERE#
 
         function parseCSVLine(line) {
             const row = []; let inQuotes = false; let currentToken = "";
@@ -1168,3 +1173,9 @@ class ExportService {
     </script>
 </body>
 </html>
+"""
+
+html_final = html_template.replace("#PDF_LOGIC_HERE#", pdf_logic_str)
+
+with open("index.html", "w", encoding="utf-8") as f:
+    f.write(html_final)
