@@ -17,7 +17,7 @@
         .nav-tabs .nav-link { color: #495057; cursor: pointer; }
         .nav-tabs .nav-link.active { font-weight: bold; color: #0d6efd; }
     </style>
-    <!-- Carga de librerías JS -->
+    <!-- Carga de librerías JS (CDN) -->
     <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
     <script src="https://unpkg.com/htm"></script>
@@ -29,6 +29,14 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
 
+    <!-- Scripts de la aplicación (orden de carga obligatorio) -->
+    <!-- 1. Utilidades y constantes globales -->
+    <script src="utils.js"></script>
+    <!-- 2. Servicios (almacenamiento, festivos, exportación) -->
+    <script src="services.js"></script>
+    <!-- 3. Componentes React (Header, ConfigDialog, CalendarGrid, etc.) -->
+    <script src="components.js"></script>
+    <!-- 4. Componente principal App e inicialización -->
     <script src="app.js"></script>
 </body>
 </html>

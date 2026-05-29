@@ -16,6 +16,7 @@ namespace CalendarioWPF.Services
         /// <param name="datos">Datos del plan de vacaciones actual.</param>
         /// <param name="config">Configuración general de visualización y exportación.</param>
         /// <param name="años">Lista de años que se procesarán e incluirán en el reporte.</param>
-        void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años);
+        /// <param name="filtroDpto">Departamento opcional para filtrar los empleados en el reporte.</param>
+        void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años, string filtroDpto = "");
     }
 }

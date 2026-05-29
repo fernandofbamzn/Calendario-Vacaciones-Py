@@ -16,22 +16,13 @@ namespace CalendarioWPF.Services
         /// <summary>
         /// Determina si un mes tiene días marcados (festivos del año natural o vacaciones imputadas a este cupo).
         /// </summary>
-        public static bool CupoMesTieneDiasMarcados(PlanVacaciones datos, int mes, int yearNatural, int quotaYear)
+        public static bool CupoMesTieneDiasMarcados(PlanVacaciones datos, int mes, int yearNatural, int quotaYear, string filtroDpto = "")
         {
-            // Verificar si hay festivos en este mes/año natural
-            foreach (var f in datos.Festivos)
-            {
-                if (DateTime.TryParseExact(f, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
-                {
-                    if (d.Year == yearNatural && d.Month == mes)
-                    {
-                        return true;
-                    }
-                }
-            }
             // Verificar si hay vacaciones imputadas a este cupo en este mes/año natural
-            foreach (var w in datos.Trabajadores.Values)
+            foreach (var wKV in datos.Trabajadores)
             {
+                var w = wKV.Value;
+                if (!string.IsNullOrEmpty(filtroDpto) && (w.Departamento ?? "General") != filtroDpto) continue;
                 foreach (var v in w.Vacaciones)
                 {
                     if (DateTime.TryParseExact(v, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
@@ -52,16 +43,14 @@ namespace CalendarioWPF.Services
 
 
         /// <summary>
-        /// Método estático privado para dibujar el encabezado y pie de página de las hojas PDF de forma consistente.
+        /// Método estático privado para dibujar el encabezado de las hojas PDF de forma consistente.
         /// </summary>
-        public static void DrawHeaderFooterPdf(XGraphics gfx, PdfPage page, string titulo, int year, int pagNum, int totalPags, string piePagina)
+        public static void DrawHeaderPdf(XGraphics gfx, PdfPage page, string titulo, int year)
         {
             double width = page.Width.Value;
-            double height = page.Height.Value;
 
             XFont fontHeader = new XFont("Arial", 13, XFontStyleEx.Bold);
             XFont fontHeaderSub = new XFont("Arial", 9.5, XFontStyleEx.Italic);
-            XFont fontFooter = new XFont("Arial", 8.5, XFontStyleEx.Regular);
 
             // Título a la izquierda
             gfx.DrawString($"{titulo} - {year}", fontHeader, XBrushes.DarkSlateGray, new XPoint(15 * Mm, 12 * Mm), XStringFormats.TopLeft);
@@ -73,6 +62,18 @@ namespace CalendarioWPF.Services
             // Línea divisoria superior
             XPen pen = new XPen(XColor.FromArgb(200, 200, 200), 0.4);
             gfx.DrawLine(pen, 15 * Mm, 18 * Mm, width - 15 * Mm, 18 * Mm);
+        }
+
+        /// <summary>
+        /// Método estático privado para dibujar el pie de página.
+        /// </summary>
+        public static void DrawFooterPdf(XGraphics gfx, PdfPage page, int pagNum, int totalPags, string piePagina)
+        {
+            double width = page.Width.Value;
+            double height = page.Height.Value;
+
+            XFont fontFooter = new XFont("Arial", 8.5, XFontStyleEx.Regular);
+            XPen pen = new XPen(XColor.FromArgb(200, 200, 200), 0.4);
 
             // Línea y textos del pie de página (footer)
             gfx.DrawLine(pen, 15 * Mm, height - 15 * Mm, width - 15 * Mm, height - 15 * Mm);

@@ -6,6 +6,7 @@ using System.Text;
 using PdfSharp;
 using PdfSharp.Pdf;
 using PdfSharp.Drawing;
+using System.Drawing;
 
 namespace CalendarioWPF.Services
 {
@@ -19,8 +20,14 @@ namespace CalendarioWPF.Services
         /// <summary>
         /// Exporta la planilla mensual a un archivo PDF con soporte multiaño.
         /// </summary>
-        public void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> anos)
+        public void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> anos, string filtroDpto = "")
         {
+            Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+
+            var filteredWorkers = datos.Trabajadores
+                .Where(w => string.IsNullOrEmpty(filtroDpto) || w.Value.Departamento == filtroDpto)
+                .ToDictionary(k => k.Key, v => v.Value);
+
             var anosAProcesar = (config.AnosAExportar != null && config.AnosAExportar.Count > 0)
                 ? config.AnosAExportar.OrderBy(y => y).ToList()
                 : anos.OrderBy(y => y).ToList();
@@ -32,19 +39,23 @@ namespace CalendarioWPF.Services
                     string yearPath = path.Contains(".")
                         ? path.Insert(path.LastIndexOf('.'), $"_{year}")
                         : $"{path}_{year}";
-                    GenerarUnicoPdfMensual(yearPath, datos, config, new List<int> { year });
+                    GenerarUnicoPdfMensual(yearPath, datos, config, new List<int> { year }, filtroDpto);
                 }
             }
             else
             {
-                GenerarUnicoPdfMensual(path, datos, config, anosAProcesar);
+                GenerarUnicoPdfMensual(path, datos, config, anosAProcesar, filtroDpto);
             }
         }
 
 
-        private static void GenerarUnicoPdfMensual(string path, PlanVacaciones datos, AppConfig config, List<int> añosAProcesar)
+        private static void GenerarUnicoPdfMensual(string path, PlanVacaciones datos, AppConfig config, List<int> añosAProcesar, string filtroDpto)
         {
             System.Text.Encoding.RegisterProvider(System.Text.CodePagesEncodingProvider.Instance);
+
+            var filteredWorkers = datos.Trabajadores
+                .Where(w => string.IsNullOrEmpty(filtroDpto) || w.Value.Departamento == filtroDpto)
+                .ToDictionary(k => k.Key, v => v.Value);
 
             PdfDocument document = new PdfDocument();
             document.Info.Title = datos.TituloPagina;
@@ -68,7 +79,7 @@ namespace CalendarioWPF.Services
                 var listaMeses = new List<(int mes, int yearNatural)>();
                 foreach (int m in mesesBase)
                 {
-                    if (!config.OcultarMesesSinDias || PdfExportHelper.CupoMesTieneDiasMarcados(datos, m, quotaYear, quotaYear))
+                    if (!config.OcultarMesesSinDias || PdfExportHelper.CupoMesTieneDiasMarcados(datos, m, quotaYear, quotaYear, filtroDpto))
                     {
                         listaMeses.Add((m, quotaYear));
                     }
@@ -83,13 +94,14 @@ namespace CalendarioWPF.Services
                 }
 
                 var mesesAdicionales = new List<(int mes, int yearNatural)>();
-                foreach (var w in datos.Trabajadores.Values)
+                foreach (var w in filteredWorkers.Values)
                 {
                     foreach (var v in w.Vacaciones)
                     {
                         if (DateTime.TryParseExact(v, "dd/MM/yyyy", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d))
                         {
-                            int qYear = (w.Imputaciones != null && w.Imputaciones.TryGetValue(v, out int val)) ? val : d.Year;
+                            int val = 0;
+                            int qYear = (w.Imputaciones != null && w.Imputaciones.TryGetValue(v, out val)) ? val : d.Year;
                             if (qYear == quotaYear)
                             {
                                 var item = (d.Month, d.Year);
@@ -109,73 +121,6 @@ namespace CalendarioWPF.Services
                     mesesPorAñoCupo[quotaYear] = listaMeses;
                 }
             }
-
-            int totalPaginas = 0;
-            double pageHeightLimit = (esLandscape ? 210 : 297) * Mm;
-            double maxSimY = pageHeightLimit - 20 * Mm;
-
-            // 2. Simulación precisa para obtener el total de páginas del reporte
-            int pagSimulada = 0;
-            foreach (int quotaYear in añosAProcesar)
-            {
-                if (!mesesPorAñoCupo.TryGetValue(quotaYear, out var meses) || meses.Count == 0)
-                    continue;
-
-                int pagsCalCupo = (int)Math.Ceiling((double)meses.Count / mesesPorPagina);
-                pagSimulada += pagsCalCupo;
-
-                double simY = 28 * Mm;
-                bool usarNuevaPaginaParaResumen = config.ForzarSaltoPagina;
-
-                if (!usarNuevaPaginaParaResumen)
-                {
-                    int mesesEnUltima = meses.Count % mesesPorPagina;
-                    if (mesesEnUltima == 0) mesesEnUltima = mesesPorPagina;
-                    int filasOcupadas = (int)Math.Ceiling((double)mesesEnUltima / colsPorPagina);
-                    double marginTop = 22 * Mm;
-                    double gapY = 5 * Mm;
-                    double areaH = pageHeightLimit - marginTop - 18 * Mm;
-                    double rowHeight = (areaH - (filasPorPagina - 1) * gapY) / filasPorPagina;
-                    double startY = marginTop + filasOcupadas * (rowHeight + gapY) + 5 * Mm;
-
-                    double estimatedNeededHeight = 35 * Mm; // leyenda + espacio básico
-                    if (filasOcupadas < filasPorPagina && startY + estimatedNeededHeight <= maxSimY)
-                    {
-                        simY = startY;
-                    }
-                    else
-                    {
-                        usarNuevaPaginaParaResumen = true;
-                    }
-                }
-
-                if (usarNuevaPaginaParaResumen)
-                {
-                    pagSimulada++;
-                    simY = 28 * Mm;
-                }
-
-                // Simular listado de trabajadores
-                simY += 6 * Mm; // Título
-                simY += 8.5 * Mm; // Leyenda 1
-                simY += 8.5 * Mm; // Leyenda 2
-                simY += 10 * Mm; // Leyenda 3
-                simY += 4 * Mm; // Línea
-                simY += 7 * Mm; // Título listado
-
-                foreach (var kvpWorker in datos.Trabajadores.OrderBy(n => n.Key))
-                {
-                    simY += 4.5 * Mm;
-                    simY += 7.5 * Mm;
-
-                    if (simY > maxSimY)
-                    {
-                        pagSimulada++;
-                        simY = 28 * Mm;
-                    }
-                }
-            }
-            totalPaginas = pagSimulada == 0 ? 1 : pagSimulada;
 
             XFont fontTitle = new XFont("Arial", 12, XFontStyleEx.Bold);
             XFont fontDays = new XFont("Arial", 9, XFontStyleEx.Bold);
@@ -204,9 +149,9 @@ namespace CalendarioWPF.Services
 
                     using (XGraphics gfx = XGraphics.FromPdfPage(page))
                     {
-                        PdfExportHelper.DrawHeaderFooterPdf(gfx, page, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
+                        PdfExportHelper.DrawHeaderPdf(gfx, page, datos.TituloPagina, quotaYear);
 
-                        DibujarCalendariosEnPagina(gfx, page, meses, mesIndex, mesesPorPagina, colsPorPagina, filasPorPagina, nombresMeses, daysHeader, fontTitle, fontDays, fontCells, fontCellsBold, fontInitials, penGray, quotaYear, datos);
+                        DibujarCalendariosEnPagina(gfx, page, meses, mesIndex, mesesPorPagina, colsPorPagina, filasPorPagina, nombresMeses, daysHeader, fontTitle, fontDays, fontCells, fontCellsBold, fontInitials, penGray, quotaYear, datos, filtroDpto);
                     }
                     mesIndex += mesesPorPagina;
                 }
@@ -233,7 +178,7 @@ namespace CalendarioWPF.Services
                     double startY = marginTop + filasOcupadasUltima * (rowHeight + gapY) + 5 * Mm;
                     double estimatedNeededHeight = 35 * Mm;
 
-                    if (filasOcupadasUltima < filasPorPagina && startY + estimatedNeededHeight <= maxSimY)
+                    if (filasOcupadasUltima < filasPorPagina && startY + estimatedNeededHeight <= pageResumen.Height.Value - 18 * Mm)
                     {
                         textY = startY;
                         gfx2 = XGraphics.FromPdfPage(pageResumen);
@@ -250,7 +195,7 @@ namespace CalendarioWPF.Services
                     pageResumen.Size = PageSize.A4;
                     pageResumen.Orientation = esLandscape ? PageOrientation.Landscape : PageOrientation.Portrait;
                     gfx2 = XGraphics.FromPdfPage(pageResumen);
-                    PdfExportHelper.DrawHeaderFooterPdf(gfx2, pageResumen, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
+                    PdfExportHelper.DrawHeaderPdf(gfx2, pageResumen, datos.TituloPagina, quotaYear);
                     textY = 28 * Mm;
                 }
 
@@ -266,14 +211,21 @@ namespace CalendarioWPF.Services
                 gfx2.DrawRectangle(new XSolidBrush(XColor.FromArgb(174, 214, 241)), 15 * Mm, textY, 20 * Mm, 7 * Mm);
                 gfx2.DrawRectangle(penGray, 15 * Mm, textY, 20 * Mm, 7 * Mm);
                 gfx2.DrawString("Día(XX)", new XFont("Arial", 7.5, XFontStyleEx.Bold), new XSolidBrush(XColor.FromArgb(27, 79, 114)), new XRect(15 * Mm, textY, 20 * Mm, 7 * Mm), XStringFormats.Center);
-                gfx2.DrawString("Vacaciones disfrutadas (imputadas al año en curso)", fontLabel, XBrushes.DarkSlateGray, new XPoint(38 * Mm, textY + 2 * Mm), XStringFormats.TopLeft);
+                gfx2.DrawString("Vacaciones (Color Dpto. Oscuro/Distinto para año anterior)", fontLabel, XBrushes.DarkSlateGray, new XPoint(38 * Mm, textY + 2 * Mm), XStringFormats.TopLeft);
                 textY += 8.5 * Mm;
 
-                // Caja Leyenda de Vacación Otro Año (Lavanda)
-                gfx2.DrawRectangle(new XSolidBrush(XColor.FromArgb(243, 232, 255)), 15 * Mm, textY, 20 * Mm, 7 * Mm);
+                // Caja Leyenda Cierre
+                gfx2.DrawRectangle(new XSolidBrush(XColor.FromArgb(250, 215, 161)), 15 * Mm, textY, 20 * Mm, 7 * Mm);
                 gfx2.DrawRectangle(penGray, 15 * Mm, textY, 20 * Mm, 7 * Mm);
-                gfx2.DrawString("Día(XX-Año)", new XFont("Arial", 7.5, XFontStyleEx.Bold), new XSolidBrush(XColor.FromArgb(107, 33, 168)), new XRect(15 * Mm, textY, 20 * Mm, 7 * Mm), XStringFormats.Center);
-                gfx2.DrawString("Vacaciones imputadas a otro año (lavanda)", fontLabel, XBrushes.DarkSlateGray, new XPoint(38 * Mm, textY + 2 * Mm), XStringFormats.TopLeft);
+                gfx2.DrawString("CDía", new XFont("Arial", 7.5, XFontStyleEx.Bold), new XSolidBrush(XColor.FromArgb(27, 79, 114)), new XRect(15 * Mm, textY, 20 * Mm, 7 * Mm), XStringFormats.Center);
+                gfx2.DrawString("Cierre Patronal (Color claro del dpto.)", fontLabel, XBrushes.DarkSlateGray, new XPoint(38 * Mm, textY + 2 * Mm), XStringFormats.TopLeft);
+                textY += 8.5 * Mm;
+
+                // Caja Leyenda de Incompatibilidad
+                gfx2.DrawRectangle(new XSolidBrush(XColors.White), 15 * Mm, textY, 20 * Mm, 7 * Mm);
+                gfx2.DrawRectangle(penGray, 15 * Mm, textY, 20 * Mm, 7 * Mm);
+                gfx2.DrawString("!Día(XX)", new XFont("Arial", 7.5, XFontStyleEx.Bold), XBrushes.Red, new XRect(15 * Mm, textY, 20 * Mm, 7 * Mm), XStringFormats.Center);
+                gfx2.DrawString("Incompatibilidad detectada (¡)", fontLabel, XBrushes.DarkSlateGray, new XPoint(38 * Mm, textY + 2 * Mm), XStringFormats.TopLeft);
                 textY += 8.5 * Mm;
 
                 // Caja Leyenda Finde/Festivo
@@ -283,6 +235,32 @@ namespace CalendarioWPF.Services
                 gfx2.DrawString("Fines de semana o días festivos oficiales", fontLabel, XBrushes.DarkSlateGray, new XPoint(38 * Mm, textY + 2 * Mm), XStringFormats.TopLeft);
                 textY += 10 * Mm;
 
+                if (datos.DepartamentosColores != null && datos.DepartamentosColores.Count > 0)
+                {
+                    gfx2.DrawString("Colores por Departamento:", fontH2, XBrushes.DarkSlateGray, new XPoint(15 * Mm, textY), XStringFormats.TopLeft);
+                    textY += 6 * Mm;
+                    
+                    double curX = 15 * Mm;
+                    foreach (var kvp in datos.DepartamentosColores)
+                    {
+                        if (curX > pageResumen.Width.Value - 40 * Mm)
+                        {
+                            curX = 15 * Mm;
+                            textY += 6 * Mm;
+                        }
+                        
+                        try {
+                            ColorConverter colorConverter = new ColorConverter();
+                            var color = (Color)colorConverter.ConvertFromString(kvp.Value);
+                            gfx2.DrawRectangle(new XSolidBrush(XColor.FromArgb(color.R, color.G, color.B)), curX, textY, 5 * Mm, 5 * Mm);
+                            gfx2.DrawRectangle(penGray, curX, textY, 5 * Mm, 5 * Mm);
+                            gfx2.DrawString(kvp.Key, fontLabel, XBrushes.DarkSlateGray, new XPoint(curX + 6 * Mm, textY + 4 * Mm), XStringFormats.BottomLeft);
+                            curX += 45 * Mm;
+                        } catch {}
+                    }
+                    textY += 8 * Mm;
+                }
+
                 XPen penLight = new XPen(XColor.FromArgb(220, 220, 220), 0.4);
                 gfx2.DrawLine(penLight, 15 * Mm, textY, pageResumen.Width.Value - 15 * Mm, textY);
                 textY += 4 * Mm;
@@ -290,45 +268,110 @@ namespace CalendarioWPF.Services
                 gfx2.DrawString("Disfrute de Vacaciones (Días laborables netos consumidos y detalle):", fontH2, XBrushes.DarkSlateGray, new XPoint(15 * Mm, textY), XStringFormats.TopLeft);
                 textY += 7 * Mm;
 
-                foreach (var kvpWorker in datos.Trabajadores.OrderBy(n => n.Key))
+                double limitY = pageResumen.Height.Value - 25 * Mm;
+
+                Action CheckPageBreak = () =>
                 {
+                    if (textY > limitY)
+                    {
+                        if (gfx2 != null) gfx2.Dispose();
+                        pageResumen = document.AddPage();
+                        pageResumen.Size = PageSize.A4;
+                        pageResumen.Orientation = esLandscape ? PageOrientation.Landscape : PageOrientation.Portrait;
+                        gfx2 = XGraphics.FromPdfPage(pageResumen);
+                        PdfExportHelper.DrawHeaderPdf(gfx2, pageResumen, datos.TituloPagina, quotaYear);
+                        textY = 28 * Mm;
+                    }
+                };
+
+                foreach (var kvpWorker in filteredWorkers.OrderBy(n => n.Key))
+                {
+                    CheckPageBreak();
+
                     string w = kvpWorker.Key;
                     var info = kvpWorker.Value;
 
-                    int netos = RangoVacacionesHelper.ContarDiasConsumidos(info.Vacaciones, info.Imputaciones, datos.Festivos, quotaYear);
+                    var festivosTrabajador = RangoVacacionesHelper.ObtenerFestivosTrabajador(w, datos);
+                    int netos = RangoVacacionesHelper.ContarDiasConsumidos(info.Vacaciones, info.Imputaciones, festivosTrabajador, quotaYear);
                     int limite = info.DiasBase + info.DiasExtras;
                     string consumosStr = $"{netos} de {limite} (en {quotaYear})";
                     string excede = netos > limite ? " (¡Cupo superado!)" : "";
 
-                    string rangosTexto = RangoVacacionesHelper.AgruparVacacionesEnTextoMultiano(info.Vacaciones, info.Imputaciones, datos.Festivos, quotaYear);
+                    var vPropias = new List<string>();
+                    var vCierres = new List<string>();
+                    string wDept = info.Departamento ?? "General";
+                    
+                    foreach (var v in info.Vacaciones)
+                    {
+                        bool isClosure = datos.Cierres != null && (
+                            (datos.Cierres.ContainsKey(wDept) && datos.Cierres[wDept].Contains(v)) ||
+                            (datos.Cierres.ContainsKey("__todos__") && datos.Cierres["__todos__"].Contains(v))
+                        );
+                        if (isClosure) vCierres.Add(v);
+                        else vPropias.Add(v);
+                    }
+
+                    string rangosPropias = vPropias.Count > 0 ? RangoVacacionesHelper.AgruparVacacionesEnTextoMultiano(vPropias, info.Imputaciones, festivosTrabajador, quotaYear) : "Ninguna";
+                    string rangosCierres = vCierres.Count > 0 ? RangoVacacionesHelper.AgruparVacacionesEnTextoMultiano(vCierres, info.Imputaciones, festivosTrabajador, quotaYear) : "";
 
                     gfx2.DrawString($"- {w}: {consumosStr} días consumidos{excede}.", fontLabelBold, XBrushes.DarkSlateGray, new XPoint(18 * Mm, textY), XStringFormats.TopLeft);
                     textY += 4.5 * Mm;
+                    CheckPageBreak();
 
-                    gfx2.DrawString($"Detalle: {rangosTexto}", fontItalic, XBrushes.Gray, new XPoint(25 * Mm, textY), XStringFormats.TopLeft);
-                    textY += 7.5 * Mm;
+                    gfx2.DrawString($"Vacaciones libres: {rangosPropias}", fontItalic, XBrushes.Gray, new XPoint(25 * Mm, textY), XStringFormats.TopLeft);
+                    textY += 4.5 * Mm;
+                    CheckPageBreak();
 
-                    if (textY > maxSimY)
+                    if (!string.IsNullOrEmpty(rangosCierres))
                     {
-                        gfx2.Dispose(); // Liberar el recurso gráfico activo antes de abrir uno nuevo
-                        PdfPage extraPage = document.AddPage();
-                        extraPage.Size = PageSize.A4;
-                        extraPage.Orientation = esLandscape ? PageOrientation.Landscape : PageOrientation.Portrait;
-                        gfx2 = XGraphics.FromPdfPage(extraPage);
-                        PdfExportHelper.DrawHeaderFooterPdf(gfx2, extraPage, datos.TituloPagina, quotaYear, pagNumGlobal++, totalPaginas, config.PiePaginaPdf);
-                        textY = 28 * Mm;
-                        maxSimY = extraPage.Height.Value - 20 * Mm;
+                        gfx2.DrawString($"Cierres patronales: {rangosCierres}", fontItalic, XBrushes.Gray, new XPoint(25 * Mm, textY), XStringFormats.TopLeft);
+                        textY += 4.5 * Mm;
+                        CheckPageBreak();
+                    }
+
+                    // Buscar conflictos de este trabajador en el año de cupo
+                    var conflictosWorker = new List<string>();
+                    foreach (var vac in info.Vacaciones)
+                    {
+                        int qYear = (info.Imputaciones != null && info.Imputaciones.TryGetValue(vac, out int yVal)) ? yVal : int.Parse(vac.Substring(6, 4));
+                        if (qYear == quotaYear && RangoVacacionesHelper.EsIncompatible(w, vac, datos))
+                        {
+                            conflictosWorker.Add(vac.Substring(0, 5));
+                        }
+                    }
+                    if (conflictosWorker.Count > 0)
+                    {
+                        var confSorted = conflictosWorker.OrderBy(c => DateTime.ParseExact(c + "/" + quotaYear, "dd/MM/yyyy", null)).ToList();
+                        gfx2.DrawString($"! Incompatibilidades detectadas en: {string.Join(", ", confSorted)}", fontLabelBold, XBrushes.Red, new XPoint(25 * Mm, textY), XStringFormats.TopLeft);
+                        textY += 6 * Mm;
+                        CheckPageBreak();
+                    }
+                    else
+                    {
+                        textY += 2 * Mm; // Separación extra si no hay conflicto
+                        CheckPageBreak();
                     }
                 }
 
                 gfx2.Dispose(); // Liberar el recurso gráfico de este cupo
             }
 
+            // Agregar footers con paginación correcta a todas las páginas
+            int totalPaginasDefinitivo = document.PageCount;
+            for (int i = 0; i < totalPaginasDefinitivo; i++)
+            {
+                PdfPage p = document.Pages[i];
+                using (XGraphics gfxPage = XGraphics.FromPdfPage(p))
+                {
+                    PdfExportHelper.DrawFooterPdf(gfxPage, p, i + 1, totalPaginasDefinitivo, config.PiePaginaPdf);
+                }
+            }
+
             document.Save(path);
         }
 
 
-        private static void DibujarCalendariosEnPagina(XGraphics gfx, PdfPage page, List<(int mes, int yearNatural)> meses, int mesIndex, int mesesPorPagina, int colsPorPagina, int filasPorPagina, string[] nombresMeses, string[] daysHeader, XFont fontTitle, XFont fontDays, XFont fontCells, XFont fontCellsBold, XFont fontInitials, XPen penGray, int quotaYear, PlanVacaciones datos)
+        private static void DibujarCalendariosEnPagina(XGraphics gfx, PdfPage page, List<(int mes, int yearNatural)> meses, int mesIndex, int mesesPorPagina, int colsPorPagina, int filasPorPagina, string[] nombresMeses, string[] daysHeader, XFont fontTitle, XFont fontDays, XFont fontCells, XFont fontCellsBold, XFont fontInitials, XPen penGray, int quotaYear, PlanVacaciones datos, string filtroDpto)
         {
             double pageW = page.Width.Value;
             double pageH = page.Height.Value;
@@ -354,12 +397,12 @@ namespace CalendarioWPF.Services
                 double xStart = marginL + col * (colWidth + gapX);
                 double yStart = marginTop + row * (rowHeight + gapY);
 
-                DibujarMesCalendario(gfx, xStart, yStart, colWidth, rowHeight, mes, yearNatural, quotaYear, nombresMeses, daysHeader, fontTitle, fontDays, fontCells, fontCellsBold, fontInitials, penGray, datos);
+                DibujarMesCalendario(gfx, xStart, yStart, colWidth, rowHeight, mes, yearNatural, quotaYear, nombresMeses, daysHeader, fontTitle, fontDays, fontCells, fontCellsBold, fontInitials, penGray, datos, filtroDpto);
             }
         }
 
 
-        private static void DibujarMesCalendario(XGraphics gfx, double xStart, double yStart, double colWidth, double rowHeight, int mes, int year, int quotaYear, string[] nombresMeses, string[] daysHeader, XFont fontTitle, XFont fontDays, XFont fontCells, XFont fontCellsBold, XFont fontInitials, XPen penGray, PlanVacaciones datos)
+        private static void DibujarMesCalendario(XGraphics gfx, double xStart, double yStart, double colWidth, double rowHeight, int mes, int year, int quotaYear, string[] nombresMeses, string[] daysHeader, XFont fontTitle, XFont fontDays, XFont fontCells, XFont fontCellsBold, XFont fontInitials, XPen penGray, PlanVacaciones datos, string filtroDpto)
         {
             gfx.DrawString($"{nombresMeses[mes].ToUpper()} {year}", fontTitle, XBrushes.DarkSlateGray, new XPoint(xStart + colWidth / 2, yStart + 3 * Mm), XStringFormats.TopCenter);
 
@@ -400,7 +443,11 @@ namespace CalendarioWPF.Services
                     {
                         string dateStr = $"{dayCounter:00}/{mes:00}/{year}";
                         bool esWeekend = (c >= 5);
-                        bool esFestivo = datos.Festivos.Contains(dateStr);
+                        bool esFestivo = datos.Festivos.Contains(dateStr) ||
+                                         (!string.IsNullOrEmpty(filtroDpto) &&
+                                          datos.FestivosDepartamento != null &&
+                                          datos.FestivosDepartamento.ContainsKey(filtroDpto) &&
+                                          datos.FestivosDepartamento[filtroDpto].Contains(dateStr));
 
                         XColor fillC = XColors.White;
                         XColor textC = XColor.FromArgb(44, 62, 80);
@@ -414,13 +461,58 @@ namespace CalendarioWPF.Services
                         }
 
                         var trabsVac = datos.Trabajadores
-                            .Where(k => k.Value.Vacaciones.Contains(dateStr))
+                            .Where(k => k.Value.Vacaciones.Contains(dateStr) && (string.IsNullOrEmpty(filtroDpto) || k.Value.Departamento == filtroDpto))
                             .Select(k => k.Key)
                             .ToList();
 
+                        bool tieneCierre = false;
+                        bool tieneConflicto = false;
+                        if (datos.Cierres != null)
+                        {
+                            if (datos.Cierres.ContainsKey("__todos__") && datos.Cierres["__todos__"].Contains(dateStr)) tieneCierre = true;
+                            
+                            if (!tieneCierre && !string.IsNullOrEmpty(filtroDpto) && datos.Cierres.ContainsKey(filtroDpto) && datos.Cierres[filtroDpto].Contains(dateStr)) tieneCierre = true;
+                            
+                            if (!tieneCierre && trabsVac.Count > 0)
+                            {
+                                foreach(var w in trabsVac)
+                                {
+                                    string dpt = datos.Trabajadores.TryGetValue(w, out var wInfo) ? (wInfo.Departamento ?? "General") : "General";
+                                    if (datos.Cierres.ContainsKey(dpt) && datos.Cierres[dpt].Contains(dateStr))
+                                    {
+                                        tieneCierre = true; break;
+                                    }
+                                }
+                            }
+                            
+                            // Si no hay trabajadores de vacaciones ni filtro, comprobar si cualquier departamento tiene cierre
+                            if (!tieneCierre && trabsVac.Count == 0 && string.IsNullOrEmpty(filtroDpto))
+                            {
+                                foreach (var cierreKvp in datos.Cierres)
+                                {
+                                    if (cierreKvp.Value.Contains(dateStr))
+                                    {
+                                        tieneCierre = true; break;
+                                    }
+                                }
+                            }
+                        }
+
                         if (trabsVac.Count > 0)
                         {
-                            bool todosOtroCupo = true;
+                            foreach (var w in trabsVac)
+                            {
+                                if (RangoVacacionesHelper.EsIncompatible(w, dateStr, datos))
+                                {
+                                    tieneConflicto = true;
+                                    break;
+                                }
+                            }
+                        }
+
+                        if (trabsVac.Count > 0 || tieneCierre)
+                        {
+                            bool todosOtroCupo = trabsVac.Count > 0;
                             foreach (var t in trabsVac)
                             {
                                 if (datos.Trabajadores.TryGetValue(t, out var tInfo))
@@ -434,15 +526,66 @@ namespace CalendarioWPF.Services
                                 }
                             }
 
-                            if (todosOtroCupo)
+                            string dptColorHex = null;
+                            if (datos.DepartamentosColores != null)
                             {
-                                fillC = XColor.FromArgb(243, 232, 255); // Lavanda (#F3E8FF)
-                                textC = XColor.FromArgb(107, 33, 168);   // Lavanda oscuro (#6B21A8)
+                                if (!string.IsNullOrEmpty(filtroDpto) && datos.DepartamentosColores.ContainsKey(filtroDpto))
+                                {
+                                    dptColorHex = datos.DepartamentosColores[filtroDpto];
+                                }
+                                else if (trabsVac.Count > 0)
+                                {
+                                    string wSample = trabsVac.First();
+                                    string wDpt = datos.Trabajadores.TryGetValue(wSample, out var wI) ? wI.Departamento : null;
+                                    if (!string.IsNullOrEmpty(wDpt) && datos.DepartamentosColores.ContainsKey(wDpt))
+                                    {
+                                        dptColorHex = datos.DepartamentosColores[wDpt];
+                                    }
+                                }
+                            }
+
+                            if (dptColorHex != null && dptColorHex.StartsWith("#") && dptColorHex.Length >= 7)
+                            {
+                                try {
+                                    byte r = Convert.ToByte(dptColorHex.Substring(1, 2), 16);
+                                    byte g = Convert.ToByte(dptColorHex.Substring(3, 2), 16);
+                                    byte b = Convert.ToByte(dptColorHex.Substring(5, 2), 16);
+                                    fillC = XColor.FromArgb(r, g, b);
+                                    textC = XColor.FromArgb(27, 79, 114); // Azul oscuro
+                                    
+                                    if (todosOtroCupo && trabsVac.Count > 0)
+                                    {
+                                        // Año anterior: color más oscuro o distinto en la paleta
+                                        fillC = XColor.FromArgb(200, (byte)Math.Max(0, r - 40), (byte)Math.Max(0, g - 40), (byte)Math.Max(0, b - 40));
+                                        textC = XColor.FromArgb(255, 255, 255); // Texto blanco
+                                    }
+                                    else if (tieneCierre && trabsVac.Count == 0)
+                                    {
+                                        // Cierre: color más claro
+                                        fillC = XColor.FromArgb(120, r, g, b);
+                                    }
+                                } catch { 
+                                    fillC = XColor.FromArgb(174, 214, 241); 
+                                    textC = XColor.FromArgb(27, 79, 114);
+                                }
                             }
                             else
                             {
-                                fillC = XColor.FromArgb(174, 214, 241); // Azul claro (#AED6F1)
-                                textC = XColor.FromArgb(27, 79, 114);   // Azul oscuro
+                                if (todosOtroCupo && trabsVac.Count > 0)
+                                {
+                                    fillC = XColor.FromArgb(243, 232, 255); // Lavanda (#F3E8FF)
+                                    textC = XColor.FromArgb(107, 33, 168);   // Lavanda oscuro (#6B21A8)
+                                }
+                                else
+                                {
+                                    fillC = tieneCierre && trabsVac.Count == 0 ? XColor.FromArgb(250, 215, 161) : XColor.FromArgb(174, 214, 241);
+                                    textC = XColor.FromArgb(27, 79, 114);
+                                }
+                            }
+                            
+                            if (tieneConflicto)
+                            {
+                                textC = XColor.FromArgb(192, 57, 43); // Rojo para conflictos
                             }
                             isFilled = true;
                         }
@@ -453,7 +596,7 @@ namespace CalendarioWPF.Services
                         }
                         gfx.DrawRectangle(penGray, curX, curY, cellW, cellH);
 
-                        if (trabsVac.Count > 0)
+                        if (trabsVac.Count > 0 || tieneCierre)
                         {
                             string ObtenerChipTexto(string trabajador)
                             {
@@ -469,25 +612,35 @@ namespace CalendarioWPF.Services
                                 return ini;
                             }
 
+                            string prefix = tieneCierre ? "C" : "";
+                            if (tieneConflicto) prefix += "!";
+                            
                             string initialsText = "";
-                            if (trabsVac.Count == 1)
+                            if (trabsVac.Count == 0 && tieneCierre)
                             {
-                                initialsText = $"({ObtenerChipTexto(trabsVac[0])})";
+                                initialsText = prefix;
+                            }
+                            else if (trabsVac.Count == 1)
+                            {
+                                initialsText = $"{prefix}({ObtenerChipTexto(trabsVac[0])})";
                             }
                             else if (trabsVac.Count == 2)
                             {
-                                initialsText = $"({ObtenerChipTexto(trabsVac[0])},{ObtenerChipTexto(trabsVac[1])})";
+                                initialsText = $"{prefix}({ObtenerChipTexto(trabsVac[0])},{ObtenerChipTexto(trabsVac[1])})";
                             }
-                            else
+                            else if (trabsVac.Count > 2)
                             {
-                                initialsText = $"({ObtenerChipTexto(trabsVac[0])}+{trabsVac.Count - 1})";
+                                initialsText = $"{prefix}({ObtenerChipTexto(trabsVac[0])}+{trabsVac.Count - 1})";
                             }
 
                             var rectDay = new XRect(curX, curY + 1 * Mm, cellW, cellH * 0.45);
                             gfx.DrawString(dayCounter.ToString(), fontCellsBold, new XSolidBrush(textC), rectDay, XStringFormats.TopCenter);
 
-                            var rectInitials = new XRect(curX, curY + cellH * 0.5, cellW, cellH * 0.4);
-                            gfx.DrawString(initialsText, fontInitials, new XSolidBrush(textC), rectInitials, XStringFormats.TopCenter);
+                            if (!string.IsNullOrEmpty(initialsText))
+                            {
+                                var rectInitials = new XRect(curX, curY + cellH * 0.5, cellW, cellH * 0.4);
+                                gfx.DrawString(initialsText, fontInitials, new XSolidBrush(textC), rectInitials, XStringFormats.TopCenter);
+                            }
                         }
                         else
                         {

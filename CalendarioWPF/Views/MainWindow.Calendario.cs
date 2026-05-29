@@ -26,6 +26,11 @@ namespace CalendarioWPF
         {
             ActualizarPanelVacacionesTexto();
             RenderCalendar();
+            
+            if (MainTabControl != null && MainTabControl.SelectedIndex == 1)
+            {
+                RenderGantt();
+            }
         }
 
         /// <summary>
@@ -37,7 +42,11 @@ namespace CalendarioWPF
             if (PanelVacacionesTexto == null) return;
 
             PanelVacacionesTexto.Children.Clear();
-            var sortedWorkers = _datos.Trabajadores.Keys.OrderBy(n => n).ToList();
+            var sortedWorkers = _datos.Trabajadores
+                .Where(kvp => string.IsNullOrEmpty(_filtroDpto) || kvp.Value.Departamento == _filtroDpto)
+                .Select(kvp => kvp.Key)
+                .OrderBy(n => n)
+                .ToList();
 
             if (sortedWorkers.Count == 0)
             {
@@ -54,12 +63,60 @@ namespace CalendarioWPF
             foreach (var w in sortedWorkers)
             {
                 var info = _datos.Trabajadores[w];
-                string rangos = RangoVacacionesHelper.AgruparVacacionesEnTexto(info.Vacaciones, info.Imputaciones, _datos.Festivos, _datos.Year);
+                var vPropias = new List<string>();
+                var vCierres = new List<string>();
+                string wDept = info.Departamento ?? "General";
+                
+                foreach (var v in info.Vacaciones)
+                {
+                    bool isClosure = _datos.Cierres != null && (
+                        (_datos.Cierres.ContainsKey(wDept) && _datos.Cierres[wDept].Contains(v)) ||
+                        (_datos.Cierres.ContainsKey("__todos__") && _datos.Cierres["__todos__"].Contains(v))
+                    );
+                    if (isClosure) vCierres.Add(v);
+                    else vPropias.Add(v);
+                }
+
+                var festivosTrabajador = RangoVacacionesHelper.ObtenerFestivosTrabajador(w, _datos);
+                string rangos = "";
+                if (vPropias.Count > 0)
+                {
+                    rangos += "Libres: " + RangoVacacionesHelper.AgruparVacacionesEnTexto(vPropias, info.Imputaciones, festivosTrabajador, _datos.Year);
+                }
+                
+                if (vCierres.Count > 0)
+                {
+                    if (rangos.Length > 0) rangos += "\n";
+                    rangos += "🔒 Cierres: " + RangoVacacionesHelper.AgruparVacacionesEnTexto(vCierres, info.Imputaciones, festivosTrabajador, _datos.Year);
+                }
+                
+                if (string.IsNullOrEmpty(rangos)) rangos = "Ninguna";
+
+                var conflictosWorker = new List<string>();
+                foreach (var vac in info.Vacaciones)
+                {
+                    if (RangoVacacionesHelper.EsIncompatible(w, vac, _datos))
+                        conflictosWorker.Add(vac.Substring(0, 5));
+                }
+                if (conflictosWorker.Count > 0)
+                {
+                    rangos += $"\n⚠️ Incompatibilidades: {string.Join(", ", conflictosWorker)}";
+                }
+
+                SolidColorBrush borderBrush = (SolidColorBrush)FindResource("ColorPrimary");
+                if (!string.IsNullOrEmpty(info.Departamento) && _datos.DepartamentosColores != null && _datos.DepartamentosColores.TryGetValue(info.Departamento, out string hexColor))
+                {
+                    try
+                    {                        
+                        borderBrush = new SolidColorBrush((Color)ColorConverter.ConvertFromString(hexColor));
+                    }
+                    catch { }
+                }
 
                 var borderItem = new Border
                 {
                     Background = (SolidColorBrush)FindResource("ColorBgApp"),
-                    BorderBrush = (SolidColorBrush)FindResource("ColorPrimary"),
+                    BorderBrush = borderBrush,
                     BorderThickness = new Thickness(4, 0, 0, 0),
                     CornerRadius = new CornerRadius(0, 8, 8, 0),
                     Padding = new Thickness(12, 8, 12, 8),
@@ -244,7 +301,11 @@ namespace CalendarioWPF
             cellBorder.Child = gridCell;
 
             // Aplicar color de fondo según estado del día
-            bool esFestivo = _datos.Festivos.Contains(dateStr);
+            bool esFestivo = _datos.Festivos.Contains(dateStr) || 
+                             (!string.IsNullOrEmpty(_filtroDpto) && 
+                              _datos.FestivosDepartamento != null && 
+                              _datos.FestivosDepartamento.ContainsKey(_filtroDpto) && 
+                              _datos.FestivosDepartamento[_filtroDpto].Contains(dateStr));
 
             if (esFinSemana)
             {
@@ -258,9 +319,9 @@ namespace CalendarioWPF
                 txtNum.FontWeight = FontWeights.Bold;
             }
 
-            // Buscar trabajadores con vacaciones en este día
+            // Buscar trabajadores con vacaciones en este día (filtrados por dpto si aplica)
             var trabsVac = _datos.Trabajadores
-                .Where(kvp => kvp.Value.Vacaciones.Contains(dateStr))
+                .Where(kvp => kvp.Value.Vacaciones.Contains(dateStr) && (string.IsNullOrEmpty(_filtroDpto) || kvp.Value.Departamento == _filtroDpto))
                 .Select(kvp => kvp.Key)
                 .ToList();
 
@@ -269,23 +330,45 @@ namespace CalendarioWPF
                 bool esVacacionActivo = _editMode == "vacaciones" && trabsVac.Contains(_activeWorker);
                 if (esVacacionActivo)
                 {
-                    // Prioridad: mostrar el color según el cupo del trabajador activo
                     var infoActivo = _datos.Trabajadores[_activeWorker];
                     int quotaYear = (infoActivo.Imputaciones != null && infoActivo.Imputaciones.TryGetValue(dateStr, out int y)) ? y : _visualizedYear;
+                    
+                    string dpto = infoActivo.Departamento ?? "General";
+                    string hexColor = (_datos.DepartamentosColores != null && _datos.DepartamentosColores.TryGetValue(dpto, out var c)) ? c : "#C7D2FE";
+                    Color baseColor = (Color)ColorConverter.ConvertFromString(hexColor);
+                    
+                    bool esCierreActivo = _datos.Cierres != null && (
+                        (_datos.Cierres.ContainsKey(dpto) && _datos.Cierres[dpto].Contains(dateStr)) ||
+                        (_datos.Cierres.ContainsKey("__todos__") && _datos.Cierres["__todos__"].Contains(dateStr))
+                    );
+                    
                     if (quotaYear != _visualizedYear)
                     {
-                        cellBorder.Background = (SolidColorBrush)FindResource("ColorVacacionOtroAño");
-                        txtNum.Foreground = (SolidColorBrush)FindResource("ColorVacacionOtroAñoText");
+                        cellBorder.Background = new SolidColorBrush(Color.FromArgb(120, baseColor.R, baseColor.G, baseColor.B));
+                        txtNum.Foreground = Brushes.Gray;
+                    }
+                    else if (esCierreActivo)
+                    {
+                        // Cierre patronal: tono más oscuro del departamento
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(
+                            (byte)Math.Max(0, baseColor.R - 40),
+                            (byte)Math.Max(0, baseColor.G - 40),
+                            (byte)Math.Max(0, baseColor.B - 40)));
+                        txtNum.Foreground = Brushes.White;
                     }
                     else
                     {
-                        cellBorder.Background = (SolidColorBrush)FindResource("ColorVacacionBase");
-                        txtNum.Foreground = (SolidColorBrush)FindResource("ColorVacacionText");
+                        cellBorder.Background = new SolidColorBrush(baseColor);
+                        txtNum.Foreground = Brushes.White;
+                    }
+                    
+                    if (esCierreActivo)
+                    {
+                        txtNum.Text = "🔒" + txtNum.Text;
                     }
                 }
                 else
                 {
-                    // Si todos los trabajadores tienen ese día imputado a otro cupo → lavanda; si hay mezcla → indigo
                     bool todosOtroAno = trabsVac.All(t =>
                     {
                         if (_datos.Trabajadores.TryGetValue(t, out var tInfo))
@@ -296,21 +379,50 @@ namespace CalendarioWPF
                         return false;
                     });
 
+                    string dpto = _datos.Trabajadores[trabsVac[0]].Departamento ?? "General";
+                    string hexColor = (_datos.DepartamentosColores != null && _datos.DepartamentosColores.TryGetValue(dpto, out var c)) ? c : "#C7D2FE"; // Default indigo-200
+                    Color baseColor = (Color)ColorConverter.ConvertFromString(hexColor);
+
+                    bool esCierrePatronal = _datos.Cierres != null && (
+                        (_datos.Cierres.ContainsKey(dpto) && _datos.Cierres[dpto].Contains(dateStr)) || 
+                        (_datos.Cierres.ContainsKey("__todos__") && _datos.Cierres["__todos__"].Contains(dateStr))
+                    );
+
                     if (todosOtroAno)
                     {
-                        cellBorder.Background = (SolidColorBrush)FindResource("ColorVacacionOtroAño");
-                        txtNum.Foreground = (SolidColorBrush)FindResource("ColorVacacionOtroAñoText");
+                        cellBorder.Background = new SolidColorBrush(Color.FromArgb(120, baseColor.R, baseColor.G, baseColor.B));
+                        txtNum.Foreground = Brushes.Gray;
+                    }
+                    else if (esCierrePatronal)
+                    {
+                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(
+                            (byte)Math.Max(0, baseColor.R - 40),
+                            (byte)Math.Max(0, baseColor.G - 40),
+                            (byte)Math.Max(0, baseColor.B - 40)));
+                        txtNum.Foreground = Brushes.White;
                     }
                     else
                     {
-                        // Mixto: hay trabajadores del cupo actual y de otro cupo → Indigo claro
-                        cellBorder.Background = new SolidColorBrush(Color.FromRgb(199, 210, 254));
-                        txtNum.Foreground = new SolidColorBrush(Color.FromRgb(55, 48, 163));
+                        cellBorder.Background = new SolidColorBrush(baseColor);
+                        txtNum.Foreground = Brushes.White;
+                    }
+                    
+                    if (esCierrePatronal)
+                    {
+                        txtNum.Text = "🔒" + txtNum.Text;
                     }
                 }
                 txtNum.FontWeight = FontWeights.Bold;
 
-                // Añadir chips de iniciales (máximo 2 + contador de exceso)
+                // Comprobar Incompatibilidad
+                bool hayIncompatibilidad = trabsVac.Any(t => RangoVacacionesHelper.EsIncompatible(t, dateStr, _datos));
+                if (hayIncompatibilidad)
+                {
+                    txtNum.Text = "!" + txtNum.Text;
+                    txtNum.Foreground = Brushes.Red;
+                }
+
+                // Añadir chips de iniciales
                 int maxChips = 2;
                 for (int i = 0; i < Math.Min(maxChips, trabsVac.Count); i++)
                 {
@@ -336,11 +448,74 @@ namespace CalendarioWPF
                     chipsStack.Children.Add(moreChip);
                 }
 
-                // Tooltip con la lista de trabajadores
+                var incompDict = new Dictionary<string, List<string>>();
+                foreach (var t in trabsVac)
+                {
+                    if (RangoVacacionesHelper.EsIncompatible(t, dateStr, _datos))
+                    {
+                        var conflictosDeT = new List<string>();
+                        var infoT = _datos.Trabajadores[t];
+                        bool dptoIncomp = _datos.DepartamentosIncompatibles != null && _datos.DepartamentosIncompatibles.Contains(infoT.Departamento);
+
+                        foreach (var kvp in _datos.Trabajadores)
+                        {
+                            if (kvp.Key == t) continue;
+                            if (!kvp.Value.Vacaciones.Contains(dateStr)) continue;
+
+                            bool choca = false;
+                            if (_datos.Incompatibilidades != null && _datos.Incompatibilidades.TryGetValue(t, out var list) && list.Contains(kvp.Key))
+                                choca = true;
+                            else if (dptoIncomp && kvp.Value.Departamento == infoT.Departamento)
+                                choca = true;
+
+                            if (choca)
+                            {
+                                string dept = string.IsNullOrEmpty(infoT.Departamento) ? "General" : infoT.Departamento;
+                                string otherDept = string.IsNullOrEmpty(kvp.Value.Departamento) ? "General" : kvp.Value.Departamento;
+                                bool isClosure = _datos.Cierres != null && (
+                                    (_datos.Cierres.ContainsKey("__todos__") && _datos.Cierres["__todos__"].Contains(dateStr)) ||
+                                    (_datos.Cierres.ContainsKey(dept) && _datos.Cierres[dept].Contains(dateStr)) ||
+                                    (_datos.Cierres.ContainsKey(otherDept) && _datos.Cierres[otherDept].Contains(dateStr))
+                                );
+                                if (!isClosure) conflictosDeT.Add(kvp.Key);
+                            }
+                        }
+                        incompDict[t] = conflictosDeT;
+                    }
+                }
+
                 var sb = new StringBuilder();
                 sb.AppendLine($"Vacaciones ({dateStr}):");
-                foreach (var t in trabsVac) sb.AppendLine($"• {t}");
+                foreach (var t in trabsVac)
+                {
+                    if (incompDict.ContainsKey(t) && incompDict[t].Count > 0)
+                        sb.AppendLine($"• ! {t} (Choca con: {string.Join(", ", incompDict[t])})");
+                    else if (incompDict.ContainsKey(t))
+                        sb.AppendLine($"• ! {t}");
+                    else
+                        sb.AppendLine($"• {t}");
+                }
                 cellBorder.ToolTip = sb.ToString().Trim();
+            }
+            else if (!esFinSemana && !esFestivo)
+            {
+                // Revisar si hay cierre de empresa que mostrar
+                var closures = _datos.Cierres?.Where(c => c.Value.Contains(dateStr)).Select(c => c.Key).ToList();
+                if (closures != null && closures.Count > 0)
+                {
+                    bool showClosure = string.IsNullOrEmpty(_filtroDpto) || closures.Contains(_filtroDpto) || closures.Contains("__todos__");
+                    if (showClosure)
+                    {
+                        string dpto = (closures.Contains(_filtroDpto) ? _filtroDpto : (closures.Contains("__todos__") ? "__todos__" : closures[0]));
+                        string hex = (_datos.DepartamentosColores != null && _datos.DepartamentosColores.TryGetValue(dpto, out var c)) ? c : null;
+                        cellBorder.Background = hex != null ? new SolidColorBrush((Color)ColorConverter.ConvertFromString(hex)) : (SolidColorBrush)FindResource("ColorVacacionBase");
+                        cellBorder.Opacity = 0.5;
+                        cellBorder.ToolTip = $"Cierre patronal: {(dpto == "__todos__" ? "General" : dpto)}";
+                        txtNum.Text = "🔒" + txtNum.Text;
+                        txtNum.Foreground = Brushes.DarkSlateGray;
+                        txtNum.FontWeight = FontWeights.Bold;
+                    }
+                }
             }
 
             // Eventos de interacción
@@ -410,6 +585,7 @@ namespace CalendarioWPF
             string dateStr = cell.Tag.ToString() ?? "";
 
             _isDragging = true;
+            _diasAsignadosEnDrag.Clear();
             _dragSelectionType = _editMode;
             cell.CaptureMouse();
 
@@ -434,15 +610,60 @@ namespace CalendarioWPF
             ProcesarDia(cell.Tag.ToString() ?? "", _dragAction);
         }
 
-        /// <summary>
-        /// Finaliza el arrastre al soltar el ratón, guarda los cambios y refresca la vista.
-        /// </summary>
+        private List<string> _diasAsignadosEnDrag = new List<string>();
+
         private void CellBorder_MouseUp(object sender, MouseButtonEventArgs e)
         {
             if (_isDragging)
             {
                 _isDragging = false;
                 (sender as Border)?.ReleaseMouseCapture();
+
+                // Avisar de incompatibilidades
+                if (_dragSelectionType == "vacaciones" && _dragAction == "select" && !string.IsNullOrEmpty(_activeWorker) && _diasAsignadosEnDrag.Count > 0)
+                {
+                    var conflictosMsg = new List<string>();
+                    
+                    var incompDirectos = (_datos.Incompatibilidades != null && _datos.Incompatibilidades.TryGetValue(_activeWorker, out var list)) 
+                        ? list : new List<string>();
+                    
+                    var dptoInfo = _datos.Trabajadores.TryGetValue(_activeWorker, out var info) ? info.Departamento : "General";
+                    bool dptoIncomp = _datos.DepartamentosIncompatibles != null && _datos.DepartamentosIncompatibles.Contains(dptoInfo);
+
+                    foreach (var fecha in _diasAsignadosEnDrag)
+                    {
+                        // Ignorar si la fecha es un cierre de empresa
+                        bool esCierre = _datos.Cierres != null && (
+                            (_datos.Cierres.ContainsKey("__todos__") && _datos.Cierres["__todos__"].Contains(fecha)) ||
+                            (_datos.Cierres.ContainsKey(dptoInfo) && _datos.Cierres[dptoInfo].Contains(fecha))
+                        );
+                        
+                        if (esCierre) continue;
+
+                        var coincidentes = new List<string>();
+                        foreach (var kvp in _datos.Trabajadores)
+                        {
+                            if (kvp.Key == _activeWorker) continue;
+                            if (!kvp.Value.Vacaciones.Contains(fecha)) continue;
+
+                            if (incompDirectos.Contains(kvp.Key) || (dptoIncomp && kvp.Value.Departamento == dptoInfo))
+                            {
+                                coincidentes.Add(kvp.Key);
+                            }
+                        }
+
+                        if (coincidentes.Count > 0)
+                        {
+                            conflictosMsg.Add($"- Día {fecha}: coincide con {string.Join(", ", coincidentes)}");
+                        }
+                    }
+
+                    if (conflictosMsg.Count > 0)
+                    {
+                        System.Windows.MessageBox.Show($"¡Atención! Has asignado vacaciones a {_activeWorker} que entran en conflicto por incompatibilidad:\n\n{string.Join("\n", conflictosMsg)}", "Incompatibilidad detectada", System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Warning);
+                    }
+                }
+
                 GuardarDatos();
                 ActualizarPanelCupo();
                 ActualizarVistas();
@@ -464,20 +685,49 @@ namespace CalendarioWPF
 
             if (_editMode == "festivos")
             {
-                if (accion == "deselect")
+                if (string.IsNullOrEmpty(_filtroDpto))
                 {
-                    _datos.Festivos.Remove(dateStr);
+                    // Festivo Global
+                    if (accion == "deselect")
+                    {
+                        _datos.Festivos.Remove(dateStr);
+                    }
+                    else
+                    {
+                        // Al marcar festivo global, eliminar de las vacaciones de todos los trabajadores
+                        foreach (var kvp in _datos.Trabajadores)
+                        {
+                            kvp.Value.Vacaciones.Remove(dateStr);
+                            kvp.Value.Imputaciones?.Remove(dateStr);
+                        }
+                        if (!_datos.Festivos.Contains(dateStr))
+                            _datos.Festivos.Add(dateStr);
+                    }
                 }
                 else
                 {
-                    // Al marcar festivo, eliminar de las vacaciones de todos los trabajadores
-                    foreach (var kvp in _datos.Trabajadores)
+                    // Festivo de Departamento
+                    if (_datos.FestivosDepartamento == null) _datos.FestivosDepartamento = new Dictionary<string, List<string>>();
+                    if (!_datos.FestivosDepartamento.ContainsKey(_filtroDpto)) _datos.FestivosDepartamento[_filtroDpto] = new List<string>();
+
+                    if (accion == "deselect")
                     {
-                        kvp.Value.Vacaciones.Remove(dateStr);
-                        kvp.Value.Imputaciones?.Remove(dateStr);
+                        _datos.FestivosDepartamento[_filtroDpto].Remove(dateStr);
                     }
-                    if (!_datos.Festivos.Contains(dateStr))
-                        _datos.Festivos.Add(dateStr);
+                    else
+                    {
+                        // Eliminar vacaciones solo de los trabajadores de ese departamento
+                        foreach (var kvp in _datos.Trabajadores)
+                        {
+                            if (kvp.Value.Departamento == _filtroDpto)
+                            {
+                                kvp.Value.Vacaciones.Remove(dateStr);
+                                kvp.Value.Imputaciones?.Remove(dateStr);
+                            }
+                        }
+                        if (!_datos.FestivosDepartamento[_filtroDpto].Contains(dateStr))
+                            _datos.FestivosDepartamento[_filtroDpto].Add(dateStr);
+                    }
                 }
             }
             else
@@ -491,6 +741,7 @@ namespace CalendarioWPF
                 {
                     info.Vacaciones.Remove(dateStr);
                     info.Imputaciones.Remove(dateStr);
+                    _diasAsignadosEnDrag.Remove(dateStr);
                 }
                 else
                 {
@@ -502,6 +753,7 @@ namespace CalendarioWPF
                         info.Vacaciones.Add(dateStr);
                         // Imputar al año de cupo activo
                         info.Imputaciones[dateStr] = _datos.Year;
+                        if (!_diasAsignadosEnDrag.Contains(dateStr)) _diasAsignadosEnDrag.Add(dateStr);
                     }
                 }
             }

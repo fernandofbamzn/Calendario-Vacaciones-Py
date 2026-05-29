@@ -145,6 +145,7 @@
                     <MenuItem Header="📂 _Importar Datos (JSON/CSV)..." Click="BtnImportar_Click"/>
                     <Separator/>
                     <MenuItem Header="📤 Exportar Configuración">
+                        <MenuItem Header="JSON - Todo (Copia Seguridad)" Click="ExportarTodoJson_Click"/>
                         <MenuItem Header="JSON - Trabajadores" Click="ExportarTrabajadoresJson_Click"/>
                         <MenuItem Header="CSV - Trabajadores" Click="ExportarTrabajadoresCsv_Click"/>
                         <MenuItem Header="JSON - Festivos" Click="ExportarFestivosJson_Click"/>
@@ -225,40 +226,46 @@
             <Border Grid.Row="1" Background="#FFFFFF" BorderBrush="{StaticResource ColorBorder}" BorderThickness="1" CornerRadius="12" Padding="12,8" Margin="0,0,0,16">
                 <Grid>
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="200"/>
-                        <ColumnDefinition Width="25"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="15"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="40"/>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="25"/>
-                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/> <!-- 0 -->
+                        <ColumnDefinition Width="200"/> <!-- 1 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 2 -->
+                        <ColumnDefinition Width="120"/> <!-- 3 -->
+                        <ColumnDefinition Width="15"/> <!-- 4 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 5 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 6 -->
+                        <ColumnDefinition Width="40"/> <!-- 7 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 8 -->
+                        <ColumnDefinition Width="15"/> <!-- 9 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 10 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 11 -->
+                        <ColumnDefinition Width="40"/> <!-- 12 -->
+                        <ColumnDefinition Width="Auto"/> <!-- 13 -->
+                        <ColumnDefinition Width="25"/> <!-- 14 -->
+                        <ColumnDefinition Width="*"/> <!-- 15 -->
                     </Grid.ColumnDefinitions>
 
                     <!-- Trabajador -->
                     <TextBlock Grid.Column="0" Text="👤 Trabajador:" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,8,0" Foreground="{StaticResource ColorTextMain}"/>
                     <ComboBox x:Name="SelectWorker" Grid.Column="1" Height="32" FontSize="13" SelectionChanged="SelectWorker_SelectionChanged" VerticalContentAlignment="Center"/>
 
+                    <!-- Filtro Dpto -->
+                    <TextBlock Grid.Column="2" Text="Filtro Dpto:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="15,0,6,0" Foreground="{StaticResource ColorTextMuted}"/>
+                    <ComboBox x:Name="CmbFiltroDpto" Grid.Column="3" Height="26" FontSize="12" SelectionChanged="CmbFiltroDpto_SelectionChanged" VerticalContentAlignment="Center"/>
+
                     <!-- Días Base -->
-                    <TextBlock Grid.Column="3" Text="Base:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource ColorTextMuted}"/>
-                    <Button x:Name="BtnDecBase" Grid.Column="4" Content="◀" Width="26" Height="26" Padding="0" Click="BtnDecBase_Click" VerticalAlignment="Center"/>
-                    <TextBox x:Name="TxtDaysBase" Grid.Column="5" Text="22" Width="36" Height="26" Padding="2" FontSize="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsReadOnly="True" BorderThickness="1,0" BorderBrush="{StaticResource ColorBorder}"/>
-                    <Button x:Name="BtnIncBase" Grid.Column="6" Content="▶" Width="26" Height="26" Padding="0" Click="BtnIncBase_Click" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="5" Text="Base:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource ColorTextMuted}"/>
+                    <Button x:Name="BtnDecBase" Grid.Column="6" Content="◀" Width="26" Height="26" Padding="0" Click="BtnDecBase_Click" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TxtDaysBase" Grid.Column="7" Text="22" Width="36" Height="26" Padding="2" FontSize="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsReadOnly="True" BorderThickness="1,0" BorderBrush="{StaticResource ColorBorder}"/>
+                    <Button x:Name="BtnIncBase" Grid.Column="8" Content="▶" Width="26" Height="26" Padding="0" Click="BtnIncBase_Click" VerticalAlignment="Center"/>
 
                     <!-- Días Extra -->
-                    <TextBlock Grid.Column="8" Text="Extras:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource ColorTextMuted}"/>
-                    <Button x:Name="BtnDecExtras" Grid.Column="9" Content="◀" Width="26" Height="26" Padding="0" Click="BtnDecExtras_Click" VerticalAlignment="Center"/>
-                    <TextBox x:Name="TxtDaysExtras" Grid.Column="10" Text="0" Width="36" Height="26" Padding="2" FontSize="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsReadOnly="True" BorderThickness="1,0" BorderBrush="{StaticResource ColorBorder}"/>
-                    <Button x:Name="BtnIncExtras" Grid.Column="11" Content="▶" Width="26" Height="26" Padding="0" Click="BtnIncExtras_Click" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="10" Text="Extras:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0" Foreground="{StaticResource ColorTextMuted}"/>
+                    <Button x:Name="BtnDecExtras" Grid.Column="11" Content="◀" Width="26" Height="26" Padding="0" Click="BtnDecExtras_Click" VerticalAlignment="Center"/>
+                    <TextBox x:Name="TxtDaysExtras" Grid.Column="12" Text="0" Width="36" Height="26" Padding="2" FontSize="12" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsReadOnly="True" BorderThickness="1,0" BorderBrush="{StaticResource ColorBorder}"/>
+                    <Button x:Name="BtnIncExtras" Grid.Column="13" Content="▶" Width="26" Height="26" Padding="0" Click="BtnIncExtras_Click" VerticalAlignment="Center"/>
 
                     <!-- Resumen Consumo y ProgressBar -->
-                    <Grid Grid.Column="13" Margin="10,0,0,0">
+                    <Grid Grid.Column="15" Margin="10,0,0,0">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="*"/>
@@ -271,7 +278,7 @@
             </Border>
         
             <!-- ================= PANEL PRINCIPAL (TabControl ocupando todo el ancho) ================= -->
-            <TabControl Grid.Row="2" Background="Transparent" BorderThickness="0">
+            <TabControl x:Name="MainTabControl" Grid.Row="2" Background="Transparent" BorderThickness="0">
                 <TabControl.Resources>
                     <Style TargetType="TabItem">
                         <Setter Property="HeaderTemplate">
@@ -344,17 +351,10 @@
 
                         <!-- Botones de Acción Extra / Leyendas de Gantt -->
                         <StackPanel Grid.Row="1" Margin="0,10,0,0">
-                            <!-- Leyendas -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <Border Width="24" Height="14" Background="#E2E8F0" BorderBrush="{StaticResource ColorBorder}" BorderThickness="1" CornerRadius="3" Margin="0,0,8,0"/>
-                                <TextBlock Text="Fin de semana / Festivos" FontSize="12" VerticalAlignment="Center" Margin="0,0,20,0"/>
-
-                                 <Border Width="24" Height="14" Background="#AED6F1" BorderBrush="#1B4F72" BorderThickness="1" CornerRadius="3" Margin="0,0,8,0"/>
-                                <TextBlock Text="Vacaciones (Año actual)" FontSize="12" VerticalAlignment="Center" Margin="0,0,20,0"/>
-
-                                <Border Width="24" Height="14" Background="#F3E8FF" BorderBrush="#6B21A8" BorderThickness="1" CornerRadius="3" Margin="0,0,8,0"/>
-                                <TextBlock Text="Vacaciones de otro año (imputadas)" FontSize="12" VerticalAlignment="Center"/>
-                            </StackPanel>
+                            <!-- Leyendas dinámicas -->
+                            <WrapPanel x:Name="PanelLeyendaGantt" Orientation="Horizontal" Margin="0,0,0,10">
+                                <!-- Se inyectará desde C# -->
+                            </WrapPanel>
                         </StackPanel>
                     </Grid>
                 </TabItem>

@@ -26,7 +26,11 @@ namespace CalendarioWPF
             SelectWorker.SelectionChanged -= SelectWorker_SelectionChanged;
             SelectWorker.Items.Clear();
 
-            var nombres = _datos.Trabajadores.Keys.OrderBy(n => n).ToList();
+            var nombres = _datos.Trabajadores
+                .Where(kvp => string.IsNullOrEmpty(_filtroDpto) || kvp.Value.Departamento == _filtroDpto)
+                .Select(kvp => kvp.Key)
+                .OrderBy(n => n)
+                .ToList();
 
             foreach (var nombre in nombres)
             {
@@ -51,6 +55,45 @@ namespace CalendarioWPF
             }
 
             SelectWorker.SelectionChanged += SelectWorker_SelectionChanged;
+            ActualizarComboFiltroDpto();
+        }
+
+        /// <summary>
+        /// Actualiza las opciones del combo de filtro de departamento y mantiene la selección.
+        /// </summary>
+        private void ActualizarComboFiltroDpto()
+        {
+            CmbFiltroDpto.SelectionChanged -= CmbFiltroDpto_SelectionChanged;
+            CmbFiltroDpto.Items.Clear();
+
+            CmbFiltroDpto.Items.Add("Todos");
+            if (_datos.Departamentos != null)
+            {
+                foreach (var dpt in _datos.Departamentos.OrderBy(d => d))
+                {
+                    CmbFiltroDpto.Items.Add(dpt);
+                }
+            }
+
+            if (!string.IsNullOrEmpty(_filtroDpto) && CmbFiltroDpto.Items.Contains(_filtroDpto))
+            {
+                CmbFiltroDpto.SelectedItem = _filtroDpto;
+            }
+            else
+            {
+                CmbFiltroDpto.SelectedIndex = 0;
+                _filtroDpto = "";
+            }
+            
+            CmbFiltroDpto.SelectionChanged += CmbFiltroDpto_SelectionChanged;
+        }
+
+        private void CmbFiltroDpto_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            string sel = CmbFiltroDpto.SelectedItem?.ToString() ?? "";
+            _filtroDpto = sel == "Todos" ? "" : sel;
+            ActualizarSelectTrabajadores(); // Para aplicar el filtro al SelectWorker
+            ActualizarVistas();
         }
 
         /// <summary>
@@ -60,7 +103,9 @@ namespace CalendarioWPF
         {
             _activeWorker = SelectWorker.SelectedItem?.ToString() ?? "";
             ActualizarPanelCupo();
-            ActualizarVistas();
+            
+            if (!_isGanttInteraction)
+                ActualizarVistas();
         }
 
         // ── Controles de Días Base ────────────────────────────────────────────────
@@ -163,7 +208,8 @@ namespace CalendarioWPF
             TxtDaysExtras.Text = info.DiasExtras.ToString();
 
             int totalDisponibles = info.DiasBase + info.DiasExtras;
-            int consumidos = RangoVacacionesHelper.ContarDiasConsumidos(info.Vacaciones, info.Imputaciones, _datos.Festivos, _datos.Year);
+            var festivosTrabajador = RangoVacacionesHelper.ObtenerFestivosTrabajador(_activeWorker, _datos);
+            int consumidos = RangoVacacionesHelper.ContarDiasConsumidos(info.Vacaciones, info.Imputaciones, festivosTrabajador, _datos.Year);
             int restantes = totalDisponibles - consumidos;
 
             double pct = totalDisponibles > 0 ? ((double)consumidos / totalDisponibles) * 100 : 0;

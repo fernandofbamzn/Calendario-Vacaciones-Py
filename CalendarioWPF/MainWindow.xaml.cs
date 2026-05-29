@@ -37,6 +37,9 @@ namespace CalendarioWPF
         /// <summary>Modo de edición activo: "vacaciones" o "festivos".</summary>
         private string _editMode = "vacaciones";
 
+        /// <summary>Filtro de departamento seleccionado. Vacío o nulo para mostrar todos.</summary>
+        private string _filtroDpto = "";
+
         /// <summary>Año del calendario que se está visualizando actualmente (puede diferir del año de cupo activo).</summary>
         private int _visualizedYear;
 
@@ -53,6 +56,9 @@ namespace CalendarioWPF
 
         /// <summary>Tipo de edición durante el arrastre: "vacaciones" o "festivos".</summary>
         private string _dragSelectionType = "";
+
+        /// <summary>Indica si la interacción actual proviene de la tabla Gantt para evitar refrescos cruzados.</summary>
+        private bool _isGanttInteraction = false;
 
         // ── Timers ────────────────────────────────────────────────────────────────
 

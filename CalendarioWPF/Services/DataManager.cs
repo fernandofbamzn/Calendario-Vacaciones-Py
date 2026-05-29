@@ -136,6 +136,45 @@ namespace CalendarioWPF.Services
                         {
                             datos.Trabajadores = JsonSerializer.Deserialize<Dictionary<string, InfoTrabajador>>(trabsProp.GetRawText()) ?? new Dictionary<string, InfoTrabajador>();
                         }
+                        if (root.TryGetProperty("departamentos", out var deptProp))
+                        {
+                            datos.Departamentos = JsonSerializer.Deserialize<List<string>>(deptProp.GetRawText()) ?? new List<string>() { "General" };
+                        }
+                        if (root.TryGetProperty("cierres", out var cierresProp))
+                        {
+                            datos.Cierres = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(cierresProp.GetRawText()) ?? new Dictionary<string, List<string>>();
+                        }
+                        if (root.TryGetProperty("incompatibilidades", out var incompProp))
+                        {
+                            datos.Incompatibilidades = JsonSerializer.Deserialize<Dictionary<string, List<string>>>(incompProp.GetRawText()) ?? new Dictionary<string, List<string>>();
+                        }
+                        
+                        // Soportar tanto formato snake_case como camelCase de la versión WEB
+                        if (root.TryGetProperty("departamentos_incompatibles", out var deptIncProp) || root.TryGetProperty("departamentosIncompatibles", out deptIncProp))
+                        {
+                            datos.DepartamentosIncompatibles = JsonSerializer.Deserialize<List<string>>(deptIncProp.GetRawText()) ?? new List<string>();
+                        }
+                        if (root.TryGetProperty("departamentos_colores", out var deptColProp) || root.TryGetProperty("departamentosColores", out deptColProp))
+                        {
+                            datos.DepartamentosColores = JsonSerializer.Deserialize<Dictionary<string, string>>(deptColProp.GetRawText()) ?? new Dictionary<string, string>();
+                        }
+
+                        // Consolidar departamentos desde los trabajadores para mantener consistencia
+                        // por si se importó un JSON antiguo que no tenía el array 'departamentos'
+                        if (datos.Departamentos == null) datos.Departamentos = new List<string> { "General" };
+                        var dptosEnTrabajadores = datos.Trabajadores.Values
+                            .Select(w => w.Departamento)
+                            .Where(d => !string.IsNullOrWhiteSpace(d))
+                            .Distinct()
+                            .ToList();
+                        
+                        foreach (var d in dptosEnTrabajadores)
+                        {
+                            if (!datos.Departamentos.Contains(d))
+                            {
+                                datos.Departamentos.Add(d);
+                            }
+                        }
 
                         return new ImportResult 
                         { 

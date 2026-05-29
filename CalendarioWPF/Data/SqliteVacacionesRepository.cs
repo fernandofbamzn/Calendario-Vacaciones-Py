@@ -19,6 +19,42 @@ namespace CalendarioWPF.Data
         {
             _context = new VacacionesDbContext();
             _context.Database.EnsureCreated();
+            EnsureColumnsExist();
+        }
+
+        private void EnsureColumnsExist()
+        {
+            var conn = _context.Database.GetDbConnection();
+            bool wasOpen = conn.State == System.Data.ConnectionState.Open;
+            if (!wasOpen) conn.Open();
+
+            try
+            {
+                using var command = conn.CreateCommand();
+                command.CommandText = "PRAGMA table_info(Planes);";
+                using var reader = command.ExecuteReader();
+                var columns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                while (reader.Read())
+                {
+                    columns.Add(reader.GetString(1));
+                }
+                reader.Close();
+
+                string[] requiredColumns = { "DepartamentosJson", "CierresJson", "IncompatibilidadesJson", "DepartamentosIncompatiblesJson", "DepartamentosColoresJson" };
+                foreach (var col in requiredColumns)
+                {
+                    if (!columns.Contains(col))
+                    {
+                        using var alterCmd = conn.CreateCommand();
+                        alterCmd.CommandText = $"ALTER TABLE Planes ADD COLUMN {col} TEXT NULL;";
+                        alterCmd.ExecuteNonQuery();
+                    }
+                }
+            }
+            finally
+            {
+                if (!wasOpen) conn.Close();
+            }
         }
 
         public PlanVacaciones CargarPlan(int year)
@@ -39,6 +75,22 @@ namespace CalendarioWPF.Data
                 Year = planEntity.Year,
                 TituloPagina = planEntity.TituloPagina
             };
+
+            // Deserialize complex properties if they exist
+            if (!string.IsNullOrEmpty(planEntity.DepartamentosJson))
+                plan.Departamentos = System.Text.Json.JsonSerializer.Deserialize<List<string>>(planEntity.DepartamentosJson) ?? new List<string>() { "General" };
+            
+            if (!string.IsNullOrEmpty(planEntity.CierresJson))
+                plan.Cierres = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<string>>>(planEntity.CierresJson) ?? new Dictionary<string, List<string>>();
+
+            if (!string.IsNullOrEmpty(planEntity.IncompatibilidadesJson))
+                plan.Incompatibilidades = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, List<string>>>(planEntity.IncompatibilidadesJson) ?? new Dictionary<string, List<string>>();
+
+            if (!string.IsNullOrEmpty(planEntity.DepartamentosIncompatiblesJson))
+                plan.DepartamentosIncompatibles = System.Text.Json.JsonSerializer.Deserialize<List<string>>(planEntity.DepartamentosIncompatiblesJson) ?? new List<string>();
+
+            if (!string.IsNullOrEmpty(planEntity.DepartamentosColoresJson))
+                plan.DepartamentosColores = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, string>>(planEntity.DepartamentosColoresJson) ?? new Dictionary<string, string>();
 
             plan.Festivos.AddRange(planEntity.Festivos.Select(f => f.Fecha));
 
@@ -76,6 +128,13 @@ namespace CalendarioWPF.Data
             }
 
             planEntity.TituloPagina = plan.TituloPagina;
+
+            // Serialize complex properties
+            planEntity.DepartamentosJson = System.Text.Json.JsonSerializer.Serialize(plan.Departamentos);
+            planEntity.CierresJson = System.Text.Json.JsonSerializer.Serialize(plan.Cierres);
+            planEntity.IncompatibilidadesJson = System.Text.Json.JsonSerializer.Serialize(plan.Incompatibilidades);
+            planEntity.DepartamentosIncompatiblesJson = System.Text.Json.JsonSerializer.Serialize(plan.DepartamentosIncompatibles);
+            planEntity.DepartamentosColoresJson = System.Text.Json.JsonSerializer.Serialize(plan.DepartamentosColores);
 
             // Update Festivos
             _context.Festivos.RemoveRange(planEntity.Festivos);

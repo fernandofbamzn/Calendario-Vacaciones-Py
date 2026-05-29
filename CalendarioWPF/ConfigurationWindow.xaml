@@ -1,7 +1,7 @@
 <Window x:Class="CalendarioWPF.ConfigurationWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="⚙️ Configuración" Height="620" Width="720"
+        Title="⚙️ Configuración" Height="760" Width="760"
         WindowStartupLocation="CenterOwner" ResizeMode="NoResize"
         Background="#F8FAFC" FontFamily="Segoe UI, Inter, Arial">
 
@@ -107,7 +107,8 @@
                               HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                               Background="White" BorderBrush="{StaticResource ColorBorder}" BorderThickness="1"
                               RowHeight="32" ColumnHeaderHeight="34" FontSize="13"
-                              SelectionMode="Extended" SelectionUnit="FullRow">
+                              SelectionMode="Extended" SelectionUnit="FullRow"
+                              PreviewKeyDown="List_PreviewKeyDown">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Nombre del Trabajador" Binding="{Binding Nombre}" Width="*" IsReadOnly="False"/>
                             <DataGridTextColumn Header="Departamento" Binding="{Binding Departamento}" Width="150" IsReadOnly="False"/>
@@ -121,38 +122,32 @@
                     <Border Grid.Row="2" Background="#EEF2FF" BorderBrush="#C7D2FE" BorderThickness="1" CornerRadius="8" Padding="10" Margin="0,10,0,0">
                         <StackPanel>
                             <TextBlock Text="✏️ Acciones en Lote (para filas seleccionadas)" FontSize="12" FontWeight="Bold" Foreground="#3730A3" Margin="0,0,0,8"/>
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="50"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="20"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="50"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                
+                            <WrapPanel Orientation="Horizontal" Margin="0,5,0,0">
                                 <!-- Días Base -->
-                                <TextBlock Grid.Column="0" Text="Base:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="TxtLoteBase" Grid.Column="1" Text="22" Padding="4" FontSize="12" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="6,0,0,0">
-                                    <Button Content="Asignar" Padding="6,2" FontSize="11" Click="BtnLoteAsignarBase_Click" Margin="0,0,4,0"/>
-                                    <Button Content="➕ Sumar" Padding="6,2" FontSize="11" Click="BtnLoteSumarBase_Click" Margin="0,0,4,0"/>
-                                    <Button Content="➖ Restar" Padding="6,2" FontSize="11" Click="BtnLoteRestarBase_Click"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,5,15,0">
+                                    <TextBlock Text="Base:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="TxtLoteBase" Text="22" Width="40" Padding="4" FontSize="12" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
+                                    <Button Content="Asignar" Padding="6,2" FontSize="11" Click="BtnLoteAsignarBase_Click" Margin="6,0,4,0"/>
+                                    <Button Content="➕" Padding="8,2" FontSize="11" Click="BtnLoteSumarBase_Click" Margin="0,0,4,0" ToolTip="Sumar días"/>
+                                    <Button Content="➖" Padding="8,2" FontSize="11" Click="BtnLoteRestarBase_Click" ToolTip="Restar días"/>
                                 </StackPanel>
                                 
-                                <!-- Separador visual -->
-                                <Border Grid.Column="3"/>
-
                                 <!-- Días Extras -->
-                                <TextBlock Grid.Column="4" Text="Extras:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
-                                <TextBox x:Name="TxtLoteExtras" Grid.Column="5" Text="0" Padding="4" FontSize="12" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
-                                <StackPanel Grid.Column="6" Orientation="Horizontal" Margin="6,0,0,0">
-                                    <Button Content="Asignar" Padding="6,2" FontSize="11" Click="BtnLoteAsignarExtras_Click" Margin="0,0,4,0"/>
-                                    <Button Content="➕ Sumar" Padding="6,2" FontSize="11" Click="BtnLoteSumarExtras_Click" Margin="0,0,4,0"/>
-                                    <Button Content="➖ Restar" Padding="6,2" FontSize="11" Click="BtnLoteRestarExtras_Click"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,5,15,0">
+                                    <TextBlock Text="Extras:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <TextBox x:Name="TxtLoteExtras" Text="0" Width="40" Padding="4" FontSize="12" HorizontalContentAlignment="Center" VerticalAlignment="Center"/>
+                                    <Button Content="Asignar" Padding="6,2" FontSize="11" Click="BtnLoteAsignarExtras_Click" Margin="6,0,4,0"/>
+                                    <Button Content="➕" Padding="8,2" FontSize="11" Click="BtnLoteSumarExtras_Click" Margin="0,0,4,0" ToolTip="Sumar días"/>
+                                    <Button Content="➖" Padding="8,2" FontSize="11" Click="BtnLoteRestarExtras_Click" ToolTip="Restar días"/>
                                 </StackPanel>
-                            </Grid>
+
+                                <!-- Departamento -->
+                                <StackPanel Orientation="Horizontal" Margin="0,5,0,0">
+                                    <TextBlock Text="Dpto:" FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,6,0"/>
+                                    <ComboBox x:Name="CmbLoteDepartamento" Width="100" Padding="4" FontSize="12" VerticalAlignment="Center"/>
+                                    <Button Content="Asignar" Padding="6,2" FontSize="11" Click="BtnLoteAsignarDepartamento_Click" Margin="6,0,0,0"/>
+                                </StackPanel>
+                            </WrapPanel>
                         </StackPanel>
                     </Border>
 
@@ -182,14 +177,18 @@
                               HeadersVisibility="Column" GridLinesVisibility="Horizontal"
                               Background="White" BorderBrush="{StaticResource ColorBorder}" BorderThickness="1"
                               RowHeight="32" ColumnHeaderHeight="34" FontSize="13"
-                              SelectionMode="Extended" SelectionUnit="FullRow">
+                              SelectionMode="Extended" SelectionUnit="FullRow"
+                              PreviewKeyDown="List_PreviewKeyDown">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Fecha (dd/MM/yyyy)" Binding="{Binding Fecha}" Width="*" IsReadOnly="False"/>
+                            <DataGridTextColumn Header="Fecha (dd/MM/yyyy)" Binding="{Binding Fecha}" Width="150" IsReadOnly="False"/>
+                            <DataGridTextColumn Header="Departamento" Binding="{Binding Departamento}" Width="*" IsReadOnly="True"/>
                         </DataGrid.Columns>
                     </DataGrid>
 
                     <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Left" Margin="0,10,0,0">
-                        <DatePicker x:Name="DpNuevoFestivo" Width="200" FontSize="13" VerticalContentAlignment="Center"/>
+                        <ComboBox x:Name="CmbNuevoFestivoDpto" Width="150" FontSize="13" VerticalContentAlignment="Center" Margin="0,0,8,0">
+                        </ComboBox>
+                        <DatePicker x:Name="DpNuevoFestivo" Width="150" FontSize="13" VerticalContentAlignment="Center"/>
                         <Button Content="➕ Añadir Festivo" Margin="8,0,0,0" Click="BtnAddFestivo_Click"/>
                         <Button Content="🗑️ Eliminar Seleccionado(s)" Style="{StaticResource BtnDanger}" Margin="8,0,0,0" Click="BtnRemoveFestivo_Click"/>
                     </StackPanel>
@@ -203,7 +202,109 @@
                 </Grid>
             </TabItem>
 
-            <!-- ===== PESTAÑA 3: EXPORTACIÓN Y VISUALIZACIÓN ===== -->
+            <!-- ===== PESTAÑA: DEPARTAMENTOS ===== -->
+            <TabItem Header="🏢 Departamentos">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Grid.Row="0" Text="Gestión de Departamentos y Cierres patronales." 
+                               FontSize="12" Foreground="{StaticResource ColorTextMuted}" Margin="0,0,0,10"/>
+                    
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <ListBox x:Name="LstDepartamentos" Grid.Column="0" Margin="0,0,10,0" SelectionChanged="LstDepartamentos_SelectionChanged" PreviewKeyDown="List_PreviewKeyDown">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock x:Name="txtContent" Text="{Binding}"/>
+                                    <DataTemplate.Triggers>
+                                        <DataTrigger Binding="{Binding}" Value="__todos__">
+                                            <Setter TargetName="txtContent" Property="Text" Value="General (Toda la Empresa)"/>
+                                            <Setter TargetName="txtContent" Property="FontWeight" Value="Bold"/>
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        
+                        <StackPanel Grid.Column="1" IsEnabled="False" x:Name="PanelDetalleDepartamento">
+                            <TextBlock Text="Cierres de Empresa (días obligatorios para el departamento):" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <ListBox x:Name="LstCierresDpto" Height="200" Margin="0,0,0,10" PreviewKeyDown="List_PreviewKeyDown"/>
+                            
+                            <StackPanel Orientation="Horizontal">
+                                <Calendar x:Name="CalCierreDpto" SelectionMode="MultipleRange" Margin="0,0,10,0"/>
+                                <StackPanel VerticalAlignment="Center">
+                                    <Button Content="➕ Añadir Seleccionados" Margin="0,0,0,10" Click="BtnAddCierreDpto_Click"/>
+                                    <Button Content="🗑️ Eliminar de lista" Style="{StaticResource BtnDanger}" Click="BtnRemoveCierreDpto_Click"/>
+                                </StackPanel>
+                            </StackPanel>
+                            
+                            <CheckBox x:Name="ChkDptoIncompatible" Content="Incompatibilidad total (nadie del depto puede coincidir)" Margin="0,15,0,0" Checked="ChkDptoIncompatible_Checked" Unchecked="ChkDptoIncompatible_Checked"/>
+                            
+                            <StackPanel Orientation="Horizontal" Margin="0,15,0,0">
+                                <TextBlock Text="Color Base (PDF):" FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <ComboBox x:Name="CmbDptoColor" Width="150" SelectionChanged="CmbDptoColor_SelectionChanged">
+                                    <ComboBoxItem Content="Gris (Por defecto)" Tag="#E2E8F0"/>
+                                    <ComboBoxItem Content="Lavanda" Tag="#E6E6FA"/>
+                                    <ComboBoxItem Content="Naranja" Tag="#FFDAB9"/>
+                                    <ComboBoxItem Content="Verde" Tag="#E0F8E0"/>
+                                    <ComboBoxItem Content="Azul" Tag="#D0E8FF"/>
+                                    <ComboBoxItem Content="Amarillo" Tag="#FFFACD"/>
+                                    <ComboBoxItem Content="Rosa" Tag="#FFE4E1"/>
+                                </ComboBox>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,10,0,0">
+                        <TextBox x:Name="TxtNuevoDpto" Width="150" Margin="0,0,10,0" VerticalContentAlignment="Center"/>
+                        <Button Content="➕ Añadir Dpto" Click="BtnAddDpto_Click"/>
+                        <Button Content="🗑️ Eliminar Dpto" Margin="10,0,0,0" Style="{StaticResource BtnDanger}" Click="BtnRemoveDpto_Click"/>
+                    </StackPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== PESTAÑA: INCOMPATIBILIDADES ===== -->
+            <TabItem Header="🚫 Incompatibilidades">
+                <Grid Margin="10">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    
+                    <TextBlock Grid.Row="0" Text="Selecciona un trabajador y añade las personas con las que no puede coincidir en vacaciones." 
+                               FontSize="12" Foreground="{StaticResource ColorTextMuted}" Margin="0,0,0,10"/>
+                               
+                    <Grid Grid.Row="1">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="250"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        
+                        <ListBox x:Name="LstTrabajadoresIncomp" Grid.Column="0" Margin="0,0,10,0" SelectionChanged="LstTrabajadoresIncomp_SelectionChanged"/>
+                        
+                        <StackPanel Grid.Column="1" IsEnabled="False" x:Name="PanelDetalleIncomp">
+                            <TextBlock Text="No puede coincidir con:" FontWeight="SemiBold" Margin="0,0,0,5"/>
+                            <ListBox x:Name="LstIncompatibles" Height="200" Margin="0,0,0,10" PreviewKeyDown="List_PreviewKeyDown"/>
+                            
+                            <StackPanel Orientation="Horizontal">
+                                <ComboBox x:Name="CmbTrabajadorIncompatible" Width="180" VerticalContentAlignment="Center"/>
+                                <Button Content="➕ Añadir" Margin="10,0,0,0" Click="BtnAddIncomp_Click"/>
+                                <Button Content="🗑️ Eliminar" Margin="10,0,0,0" Style="{StaticResource BtnDanger}" Click="BtnRemoveIncomp_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- ===== PESTAÑA: EXPORTACIÓN Y VISUALIZACIÓN ===== -->
             <TabItem Header="📄 Exportación y Visualización">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" Margin="10">
                     <StackPanel>

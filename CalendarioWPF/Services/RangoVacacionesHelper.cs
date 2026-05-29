@@ -243,5 +243,68 @@ namespace CalendarioWPF.Services
             rangesText.RemoveAt(rangesText.Count - 1);
             return string.Join(", ", rangesText) + " y " + lastText;
         }
+
+        public static List<string> ObtenerFestivosTrabajador(string workerName, PlanVacaciones datos)
+        {
+            var festivos = new HashSet<string>(datos.Festivos ?? new List<string>());
+            if (datos.Trabajadores.TryGetValue(workerName, out var info))
+            {
+                string dept = string.IsNullOrEmpty(info.Departamento) ? "General" : info.Departamento;
+                if (datos.FestivosDepartamento != null && datos.FestivosDepartamento.TryGetValue(dept, out var festivosDpto))
+                {
+                    festivos.UnionWith(festivosDpto);
+                }
+            }
+            return festivos.ToList();
+        }
+
+        /// <summary>
+        /// Comprueba si en una fecha concreta hay una colisión por incompatibilidad para el trabajador dado.
+        /// Revisa incompatibilidades directas y de departamento.
+        /// </summary>
+        public static bool EsIncompatible(string workerName, string dateStr, PlanVacaciones datos)
+        {
+            if (!datos.Trabajadores.TryGetValue(workerName, out var info)) return false;
+
+            string dept = string.IsNullOrEmpty(info.Departamento) ? "General" : info.Departamento;
+
+            // Si la fecha es un cierre para este trabajador, ignoramos incompatibilidades
+            if (datos.Cierres != null)
+            {
+                if (datos.Cierres.ContainsKey("__todos__") && datos.Cierres["__todos__"].Contains(dateStr)) return false;
+                if (datos.Cierres.ContainsKey(dept) && datos.Cierres[dept].Contains(dateStr)) return false;
+            }
+
+            bool dptoIncomp = datos.DepartamentosIncompatibles != null && datos.DepartamentosIncompatibles.Contains(info.Departamento);
+            
+            var incompDirectos = (datos.Incompatibilidades != null && datos.Incompatibilidades.TryGetValue(workerName, out var list)) 
+                ? list 
+                : new List<string>();
+
+            foreach (var kvp in datos.Trabajadores)
+            {
+                if (kvp.Key == workerName) continue;
+                var otherInfo = kvp.Value;
+                
+                if (!otherInfo.Vacaciones.Contains(dateStr)) continue;
+
+                // Comprobar si también es un cierre para el otro trabajador
+                string otherDept = string.IsNullOrEmpty(otherInfo.Departamento) ? "General" : otherInfo.Departamento;
+                bool isOtherClosure = false;
+                if (datos.Cierres != null)
+                {
+                    isOtherClosure = (datos.Cierres.ContainsKey("__todos__") && datos.Cierres["__todos__"].Contains(dateStr)) ||
+                                     (datos.Cierres.ContainsKey(otherDept) && datos.Cierres[otherDept].Contains(dateStr));
+                }
+
+                if (!isOtherClosure)
+                {
+                    if (incompDirectos.Contains(kvp.Key)) return true;
+                    if (dptoIncomp && otherInfo.Departamento == info.Departamento) return true;
+                }
+            }
+
+            return false;
+        }
     }
 }

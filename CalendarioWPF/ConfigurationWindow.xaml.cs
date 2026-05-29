@@ -6,6 +6,7 @@ using System.Globalization;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using CalendarioWPF.Services;
 
 namespace CalendarioWPF
@@ -71,6 +72,13 @@ namespace CalendarioWPF
         {
             get => _fecha;
             set { _fecha = value; OnPropertyChanged(nameof(Fecha)); }
+        }
+
+        private string _departamento = "Global";
+        public string Departamento
+        {
+            get => _departamento;
+            set { _departamento = value; OnPropertyChanged(nameof(Departamento)); }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;
@@ -147,6 +155,16 @@ namespace CalendarioWPF
         /// <summary>
         /// Carga los datos actuales del plan y la configuración en los controles de la ventana.
         /// </summary>
+        private List<string> GetDepartamentosConGeneral()
+        {
+            var list = new List<string> { "__todos__" };
+            if (_datos.Departamentos != null)
+            {
+                list.AddRange(_datos.Departamentos);
+            }
+            return list;
+        }
+
         private void CargarDatosEnUI()
         {
             // --- Pestaña Personal ---
@@ -165,24 +183,65 @@ namespace CalendarioWPF
                 });
             }
             DgTrabajadores.ItemsSource = Trabajadores;
+            
+            if (_datos.Departamentos == null) _datos.Departamentos = new List<string> { "General" };
+            CmbLoteDepartamento.ItemsSource = _datos.Departamentos;
+            if (_datos.Departamentos.Count > 0) CmbLoteDepartamento.SelectedIndex = 0;
 
             // --- Pestaña Festivos ---
             Festivos.Clear();
-            var festivosOrdenados = _datos.Festivos
-                .Select(f =>
+            var todosFestivos = new List<FestivoRow>();
+            
+            // Globales
+            foreach (var f in _datos.Festivos)
+            {
+                todosFestivos.Add(new FestivoRow { Fecha = f, Departamento = "Global" });
+            }
+
+            // Por Departamento
+            if (_datos.FestivosDepartamento != null)
+            {
+                foreach (var kvp in _datos.FestivosDepartamento)
                 {
-                    DateTime.TryParseExact(f, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d);
-                    return new { Str = f, Date = d };
+                    foreach (var f in kvp.Value)
+                    {
+                        todosFestivos.Add(new FestivoRow { Fecha = f, Departamento = kvp.Key });
+                    }
+                }
+            }
+
+            // Ordenar por fecha
+            var festivosOrdenados = todosFestivos
+                .Select(fr =>
+                {
+                    DateTime.TryParseExact(fr.Fecha, "dd/MM/yyyy", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d);
+                    return new { Row = fr, Date = d };
                 })
                 .OrderBy(x => x.Date)
-                .Select(x => x.Str)
+                .Select(x => x.Row)
                 .ToList();
 
-            foreach (var f in festivosOrdenados)
+            foreach (var fr in festivosOrdenados)
             {
-                Festivos.Add(new FestivoRow { Fecha = f });
+                Festivos.Add(fr);
             }
             DgFestivos.ItemsSource = Festivos;
+            
+            // Llenar combo de nuevo festivo
+            CmbNuevoFestivoDpto.Items.Clear();
+            CmbNuevoFestivoDpto.Items.Add("Global");
+            if (_datos.Departamentos != null)
+            {
+                foreach(var d in _datos.Departamentos)
+                {
+                    CmbNuevoFestivoDpto.Items.Add(d);
+                }
+            }
+            CmbNuevoFestivoDpto.SelectedIndex = 0;
+            
+            // --- Pestaña Departamentos e Incompatibilidades ---
+            LstDepartamentos.ItemsSource = GetDepartamentosConGeneral();
+            LstTrabajadoresIncomp.ItemsSource = _datos.Trabajadores.Keys.ToList();
 
             // --- Pestaña Exportación ---
             CbPersistencia.SelectedIndex = _config.TipoPersistencia == "SQLite" ? 0 : 1;
@@ -340,6 +399,49 @@ namespace CalendarioWPF
             }
         }
 
+        /// <summary>
+        /// Asigna el departamento especificado a los trabajadores seleccionados.
+        /// </summary>
+        private void BtnLoteAsignarDepartamento_Click(object sender, RoutedEventArgs e)
+        {
+            if (CmbLoteDepartamento.SelectedItem is string dept && !string.IsNullOrEmpty(dept))
+            {
+                foreach (var row in DgTrabajadores.SelectedItems.Cast<TrabajadorRow>())
+                {
+                    if (row.Departamento != dept)
+                    {
+                        row.Departamento = dept;
+                        
+                        // Lógica recursiva de heredar cierres e incompatibilidades al cambiar departamento
+                        if (_datos.DepartamentosIncompatibles != null && _datos.DepartamentosIncompatibles.Contains(dept))
+                        {
+                            var miembros = Trabajadores.Where(t => t.Departamento == dept && t.Nombre != row.Nombre).Select(t => t.Nombre).ToList();
+                            if (!_datos.Incompatibilidades.ContainsKey(row.Nombre)) _datos.Incompatibilidades[row.Nombre] = new List<string>();
+                            
+                            foreach(var m in miembros)
+                            {
+                                if (!_datos.Incompatibilidades[row.Nombre].Contains(m)) _datos.Incompatibilidades[row.Nombre].Add(m);
+                                if (!_datos.Incompatibilidades.ContainsKey(m)) _datos.Incompatibilidades[m] = new List<string>();
+                                if (!_datos.Incompatibilidades[m].Contains(row.Nombre)) _datos.Incompatibilidades[m].Add(row.Nombre);
+                            }
+                        }
+
+                        if (_datos.Cierres != null && _datos.Cierres.ContainsKey(dept))
+                        {
+                            var workerOriginal = _datos.Trabajadores.ContainsKey(row.NombreOriginal) ? _datos.Trabajadores[row.NombreOriginal] : null;
+                            List<string> vacs = workerOriginal != null ? workerOriginal.Vacaciones.ToList() : new List<string>();
+                            foreach(var f in _datos.Cierres[dept])
+                            {
+                                if (!vacs.Contains(f)) vacs.Add(f);
+                            }
+                            if (workerOriginal != null) workerOriginal.Vacaciones = vacs;
+                            // Esto no se refleja directamente en la UI de días usados hasta guardar
+                        }
+                    }
+                }
+            }
+        }
+
         #endregion
 
         #region Pestaña Festivos
@@ -352,9 +454,11 @@ namespace CalendarioWPF
             if (DpNuevoFestivo.SelectedDate.HasValue)
             {
                 string fechaStr = DpNuevoFestivo.SelectedDate.Value.ToString("dd/MM/yyyy");
-                if (!Festivos.Any(f => f.Fecha == fechaStr))
+                string dpto = CmbNuevoFestivoDpto.SelectedItem?.ToString() ?? "Global";
+                
+                if (!Festivos.Any(f => f.Fecha == fechaStr && f.Departamento == dpto))
                 {
-                    Festivos.Add(new FestivoRow { Fecha = fechaStr });
+                    Festivos.Add(new FestivoRow { Fecha = fechaStr, Departamento = dpto });
                     DpNuevoFestivo.SelectedDate = null;
                 }
             }
@@ -455,24 +559,82 @@ namespace CalendarioWPF
                 }
             }
 
-            // --- Aplicar cambios de Festivos ---
-            _datos.Festivos.Clear();
-            foreach (var row in Festivos)
+            // Aplicar recursivamente Cierres e Incompatibilidades de Departamento a todos los trabajadores
+            if (_datos.DepartamentosIncompatibles != null)
             {
-                string f = row.Fecha.Trim();
-                if (!string.IsNullOrEmpty(f) && !_datos.Festivos.Contains(f))
+                foreach (var dept in _datos.DepartamentosIncompatibles)
                 {
-                    _datos.Festivos.Add(f);
+                    var miembros = _datos.Trabajadores.Where(kvp => (kvp.Value.Departamento ?? "General") == dept).Select(kvp => kvp.Key).ToList();
+                    if (miembros.Count >= 2)
+                    {
+                        if (_datos.Incompatibilidades == null) _datos.Incompatibilidades = new Dictionary<string, List<string>>();
+                        foreach (var m1 in miembros)
+                        {
+                            if (!_datos.Incompatibilidades.ContainsKey(m1)) _datos.Incompatibilidades[m1] = new List<string>();
+                            foreach (var m2 in miembros)
+                            {
+                                if (m1 != m2 && !_datos.Incompatibilidades[m1].Contains(m2)) _datos.Incompatibilidades[m1].Add(m2);
+                            }
+                        }
+                    }
                 }
             }
 
-            // Limpiar vacaciones que caigan en festivos nuevos
-            foreach (var festivo in _datos.Festivos)
+            if (_datos.Cierres != null)
             {
-                foreach (var kvp in _datos.Trabajadores)
+                foreach (var kvpCierre in _datos.Cierres)
                 {
-                    kvp.Value.Vacaciones.Remove(festivo);
+                    string dept = kvpCierre.Key;
+                    var cierresDept = kvpCierre.Value;
+                    if (cierresDept != null && cierresDept.Count > 0)
+                    {
+                        var miembros = _datos.Trabajadores.Where(kvp => dept == "__todos__" || (kvp.Value.Departamento ?? "General") == dept).Select(kvp => kvp.Value).ToList();
+                        foreach (var trabajador in miembros)
+                        {
+                            foreach (var cierreFecha in cierresDept)
+                            {
+                                if (!trabajador.Vacaciones.Contains(cierreFecha)) trabajador.Vacaciones.Add(cierreFecha);
+                            }
+                        }
+                    }
                 }
+            }
+
+            // --- Aplicar cambios de Festivos ---
+            _datos.Festivos.Clear();
+            if (_datos.FestivosDepartamento == null) _datos.FestivosDepartamento = new Dictionary<string, List<string>>();
+            _datos.FestivosDepartamento.Clear();
+
+            foreach (var row in Festivos)
+            {
+                string f = row.Fecha.Trim();
+                if (!string.IsNullOrEmpty(f))
+                {
+                    if (row.Departamento == "Global")
+                    {
+                        if (!_datos.Festivos.Contains(f)) _datos.Festivos.Add(f);
+                    }
+                    else
+                    {
+                        if (!_datos.FestivosDepartamento.ContainsKey(row.Departamento))
+                        {
+                            _datos.FestivosDepartamento[row.Departamento] = new List<string>();
+                        }
+                        if (!_datos.FestivosDepartamento[row.Departamento].Contains(f))
+                        {
+                            _datos.FestivosDepartamento[row.Departamento].Add(f);
+                        }
+                    }
+                }
+            }
+
+            // Limpiar vacaciones que caigan en festivos nuevos (globales y de departamento)
+            foreach (var kvp in _datos.Trabajadores)
+            {
+                var w = kvp.Key;
+                var info = kvp.Value;
+                var festivosTrabajador = RangoVacacionesHelper.ObtenerFestivosTrabajador(w, _datos);
+                info.Vacaciones.RemoveAll(v => festivosTrabajador.Contains(v));
             }
 
             // --- Aplicar cambios de Configuración ---
@@ -631,5 +793,276 @@ namespace CalendarioWPF
         }
 
         #endregion
+
+        #region Departamentos e Incompatibilidades
+
+        private void LstDepartamentos_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LstDepartamentos.SelectedItem is string dpt)
+            {
+                PanelDetalleDepartamento.IsEnabled = true;
+                LstCierresDpto.ItemsSource = null;
+                if (_datos.Cierres != null && _datos.Cierres.ContainsKey(dpt))
+                {
+                    LstCierresDpto.ItemsSource = _datos.Cierres[dpt].ToList();
+                }
+                
+                ChkDptoIncompatible.IsChecked = _datos.DepartamentosIncompatibles != null && _datos.DepartamentosIncompatibles.Contains(dpt);
+                
+                // Cargar color
+                CmbDptoColor.SelectionChanged -= CmbDptoColor_SelectionChanged; // Desuscribir temporalmente
+                CmbDptoColor.SelectedIndex = 0; // Por defecto Gris
+                if (_datos.DepartamentosColores != null && _datos.DepartamentosColores.ContainsKey(dpt))
+                {
+                    string colorHex = _datos.DepartamentosColores[dpt];
+                    foreach (ComboBoxItem item in CmbDptoColor.Items)
+                    {
+                        if (item.Tag?.ToString() == colorHex)
+                        {
+                            CmbDptoColor.SelectedItem = item;
+                            break;
+                        }
+                    }
+                }
+                CmbDptoColor.SelectionChanged += CmbDptoColor_SelectionChanged; // Suscribir de nuevo
+            }
+            else
+            {
+                PanelDetalleDepartamento.IsEnabled = false;
+                LstCierresDpto.ItemsSource = null;
+                ChkDptoIncompatible.IsChecked = false;
+            }
+        }
+
+        private void BtnAddCierreDpto_Click(object sender, RoutedEventArgs e)
+        {
+            if (LstDepartamentos.SelectedItem is string dpt && CalCierreDpto.SelectedDates.Count > 0)
+            {
+                if (_datos.Cierres == null) _datos.Cierres = new Dictionary<string, List<string>>();
+                if (!_datos.Cierres.ContainsKey(dpt)) _datos.Cierres[dpt] = new List<string>();
+                
+                var list = _datos.Cierres[dpt];
+                bool changed = false;
+                
+                foreach (DateTime date in CalCierreDpto.SelectedDates)
+                {
+                    string fecha = date.ToString("dd/MM/yyyy");
+                    if (!list.Contains(fecha))
+                    {
+                        list.Add(fecha);
+                        changed = true;
+                    }
+                }
+                
+                if (changed)
+                {
+                    list.Sort((a, b) => System.DateTime.ParseExact(a, "dd/MM/yyyy", null).CompareTo(System.DateTime.ParseExact(b, "dd/MM/yyyy", null)));
+                    LstCierresDpto.ItemsSource = null;
+                    LstCierresDpto.ItemsSource = list;
+                }
+            }
+        }
+
+        private void BtnRemoveCierreDpto_Click(object sender, RoutedEventArgs e)
+        {
+            if (LstDepartamentos.SelectedItem is string dpt && LstCierresDpto.SelectedItem is string fecha)
+            {
+                if (_datos.Cierres != null && _datos.Cierres.ContainsKey(dpt))
+                {
+                    var list = _datos.Cierres[dpt];
+                    list.Remove(fecha);
+                    LstCierresDpto.ItemsSource = null;
+                    LstCierresDpto.ItemsSource = list;
+                }
+            }
+        }
+
+        private void ChkDptoIncompatible_Checked(object sender, RoutedEventArgs e)
+        {
+            if (LstDepartamentos.SelectedItem is string dpt)
+            {
+                if (_datos.DepartamentosIncompatibles == null) _datos.DepartamentosIncompatibles = new List<string>();
+                var list = _datos.DepartamentosIncompatibles;
+                
+                bool isChecked = ChkDptoIncompatible.IsChecked == true;
+                if (isChecked && !list.Contains(dpt))
+                {
+                    list.Add(dpt);
+                    
+                    // Aplicar incompatibilidad mutua a todos los miembros actuales del departamento
+                    var miembros = _datos.Trabajadores.Where(kvp => (kvp.Value.Departamento ?? "General") == dpt).Select(kvp => kvp.Key).ToList();
+                    if (miembros.Count >= 2)
+                    {
+                        if (_datos.Incompatibilidades == null) _datos.Incompatibilidades = new Dictionary<string, List<string>>();
+                        foreach (var m1 in miembros)
+                        {
+                            if (!_datos.Incompatibilidades.ContainsKey(m1)) _datos.Incompatibilidades[m1] = new List<string>();
+                            foreach (var m2 in miembros)
+                            {
+                                if (m1 != m2 && !_datos.Incompatibilidades[m1].Contains(m2))
+                                {
+                                    _datos.Incompatibilidades[m1].Add(m2);
+                                }
+                            }
+                        }
+                        MessageBox.Show($"Se han generado las incompatibilidades cruzadas para los {miembros.Count} miembros de {dpt}.", "Incompatibilidades generadas", MessageBoxButton.OK, MessageBoxImage.Information);
+                    }
+                }
+                else if (!isChecked && list.Contains(dpt)) 
+                {
+                    list.Remove(dpt);
+                }
+            }
+        }
+
+        private void CmbDptoColor_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LstDepartamentos.SelectedItem is string dpt && CmbDptoColor.SelectedItem is ComboBoxItem item)
+            {
+                if (_datos.DepartamentosColores == null) _datos.DepartamentosColores = new Dictionary<string, string>();
+                
+                string hex = item.Tag?.ToString();
+                if (!string.IsNullOrEmpty(hex))
+                {
+                    _datos.DepartamentosColores[dpt] = hex;
+                }
+                else
+                {
+                    if (_datos.DepartamentosColores.ContainsKey(dpt))
+                        _datos.DepartamentosColores.Remove(dpt);
+                }
+            }
+        }
+
+        private void BtnAddDpto_Click(object sender, RoutedEventArgs e)
+        {
+            string dpt = TxtNuevoDpto.Text.Trim();
+            if (!string.IsNullOrEmpty(dpt))
+            {
+                if (_datos.Departamentos == null) _datos.Departamentos = new List<string>();
+                if (!_datos.Departamentos.Contains(dpt))
+                {
+                    _datos.Departamentos.Add(dpt);
+                    LstDepartamentos.ItemsSource = null;
+                    LstDepartamentos.ItemsSource = GetDepartamentosConGeneral();
+                    CmbLoteDepartamento.ItemsSource = null;
+                    CmbLoteDepartamento.ItemsSource = _datos.Departamentos;
+                    TxtNuevoDpto.Text = "";
+                }
+            }
+        }
+
+        private void BtnRemoveDpto_Click(object sender, RoutedEventArgs e)
+        {
+            if (LstDepartamentos.SelectedItem is string dpt)
+            {
+                if (_datos.Departamentos != null)
+                {
+                    _datos.Departamentos.Remove(dpt);
+                    LstDepartamentos.ItemsSource = null;
+                    LstDepartamentos.ItemsSource = GetDepartamentosConGeneral();
+                    CmbLoteDepartamento.ItemsSource = null;
+                    CmbLoteDepartamento.ItemsSource = _datos.Departamentos;
+                }
+            }
+        }
+
+        private void LstTrabajadoresIncomp_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (LstTrabajadoresIncomp.SelectedItem is string w)
+            {
+                PanelDetalleIncomp.IsEnabled = true;
+                LstIncompatibles.ItemsSource = null;
+                if (_datos.Incompatibilidades != null && _datos.Incompatibilidades.ContainsKey(w))
+                {
+                    LstIncompatibles.ItemsSource = _datos.Incompatibilidades[w].ToList();
+                }
+                
+                var otros = _datos.Trabajadores.Keys.Where(k => k != w).ToList();
+                CmbTrabajadorIncompatible.ItemsSource = otros;
+            }
+            else
+            {
+                PanelDetalleIncomp.IsEnabled = false;
+                LstIncompatibles.ItemsSource = null;
+            }
+        }
+
+        private void BtnAddIncomp_Click(object sender, RoutedEventArgs e)
+        {
+            if (LstTrabajadoresIncomp.SelectedItem is string w && CmbTrabajadorIncompatible.SelectedItem is string incomp)
+            {
+                if (_datos.Incompatibilidades == null) _datos.Incompatibilidades = new Dictionary<string, List<string>>();
+                
+                if (!_datos.Incompatibilidades.ContainsKey(w)) _datos.Incompatibilidades[w] = new List<string>();
+                if (!_datos.Incompatibilidades[w].Contains(incomp)) _datos.Incompatibilidades[w].Add(incomp);
+                
+                if (!_datos.Incompatibilidades.ContainsKey(incomp)) _datos.Incompatibilidades[incomp] = new List<string>();
+                if (!_datos.Incompatibilidades[incomp].Contains(w)) _datos.Incompatibilidades[incomp].Add(w);
+                
+                LstIncompatibles.ItemsSource = null;
+                LstIncompatibles.ItemsSource = _datos.Incompatibilidades[w].ToList();
+            }
+        }
+
+        private void BtnRemoveIncomp_Click(object sender, RoutedEventArgs e)
+        {
+            if (LstTrabajadoresIncomp.SelectedItem is string w && LstIncompatibles.SelectedItem is string incomp)
+            {
+                if (_datos.Incompatibilidades != null)
+                {
+                    if (_datos.Incompatibilidades.ContainsKey(w)) _datos.Incompatibilidades[w].Remove(incomp);
+                    if (_datos.Incompatibilidades.ContainsKey(incomp)) _datos.Incompatibilidades[incomp].Remove(w);
+                    
+                    LstIncompatibles.ItemsSource = null;
+                    LstIncompatibles.ItemsSource = _datos.Incompatibilidades[w].ToList();
+                }
+            }
+        }
+
+        #endregion
+        private void List_PreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Delete)
+            {
+                if (sender is ListBox listBox)
+                {
+                    int index = listBox.SelectedIndex;
+                    if (index == -1) return;
+                    
+                    if (listBox == LstDepartamentos) BtnRemoveDpto_Click(null, null);
+                    else if (listBox == LstCierresDpto) BtnRemoveCierreDpto_Click(null, null);
+                    else if (listBox == LstIncompatibles) BtnRemoveIncomp_Click(null, null);
+                    
+                    if (listBox.Items.Count > 0)
+                    {
+                        listBox.SelectedIndex = Math.Min(index, listBox.Items.Count - 1);
+                        var item = listBox.SelectedItem;
+                        if (item != null)
+                        {
+                            listBox.ScrollIntoView(item);
+                        }
+                    }
+                }
+                else if (sender is DataGrid dataGrid)
+                {
+                    int index = dataGrid.SelectedIndex;
+                    if (index == -1) return;
+                    
+                    if (dataGrid == DgTrabajadores) BtnRemoveTrabajador_Click(null, null);
+                    else if (dataGrid == DgFestivos) BtnRemoveFestivo_Click(null, null);
+                    
+                    if (dataGrid.Items.Count > 0)
+                    {
+                        dataGrid.SelectedIndex = Math.Min(index, dataGrid.Items.Count - 1);
+                        var item = dataGrid.SelectedItem;
+                        if (item != null)
+                        {
+                            dataGrid.ScrollIntoView(item);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

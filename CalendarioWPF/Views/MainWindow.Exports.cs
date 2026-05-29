@@ -41,6 +41,7 @@ namespace CalendarioWPF
                     _datos = res.DatosActualizados;
                     GuardarDatos();
                     ActualizarSelectTrabajadores();
+                    ActualizarComboFiltroDpto();
                     ActualizarPanelCupo();
                     ActualizarVistas();
 
@@ -84,6 +85,13 @@ namespace CalendarioWPF
                     MostrarEstado($"❌ Error al guardar: {ex.Message}");
                 }
             }
+        }
+
+        private void ExportarTodoJson_Click(object sender, RoutedEventArgs e)
+        {
+            var options = new System.Text.Json.JsonSerializerOptions { WriteIndented = true };
+            string json = System.Text.Json.JsonSerializer.Serialize(_datos, options);
+            GuardarArchivoExportado($"datos_vacaciones_{_datos.Year}.json", json);
         }
 
         private void ExportarTrabajadoresJson_Click(object sender, RoutedEventArgs e)
@@ -137,7 +145,7 @@ namespace CalendarioWPF
             try
             {
                 var anos = ObtenerAnosConDatos();
-                PdfMensualService.Instance.ExportarMensual(saveFileDialog.FileName, _datos, _config, anos);
+                PdfMensualService.Instance.ExportarMensual(saveFileDialog.FileName, _datos, _config, anos, _filtroDpto);
                 AbrirArchivo(saveFileDialog.FileName);
                 MostrarEstado("✅ PDF Mensual exportado correctamente.");
             }
@@ -161,12 +169,17 @@ namespace CalendarioWPF
 
             if (saveFileDialog.ShowDialog() != true) return;
 
+            GenerarPdfGantt(saveFileDialog.FileName);
+            AbrirArchivo(saveFileDialog.FileName);
+        }
+
+        private void GenerarPdfGantt(string rutaDestino)
+        {
             try
             {
-                var anos = ObtenerAnosConDatos();
-                PdfGanttService.Instance.ExportarGantt(saveFileDialog.FileName, _datos, _config, anos);
-                AbrirArchivo(saveFileDialog.FileName);
-                MostrarEstado("✅ PDF Gantt exportado correctamente.");
+                var años = ObtenerAnosConDatos();
+                PdfGanttService.Instance.ExportarGantt(rutaDestino, _datos, _config, años, _filtroDpto);
+                MostrarEstado($"PDF Gantt generado en {System.IO.Path.GetFileName(rutaDestino)}");
             }
             catch (Exception ex)
             {

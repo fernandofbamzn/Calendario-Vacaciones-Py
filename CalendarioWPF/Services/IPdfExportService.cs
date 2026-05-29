@@ -17,14 +17,14 @@ namespace CalendarioWPF.Services
     {
         public static IPdfExportService Instance { get; } = new PdfExportFacade();
 
-        public void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años)
+        public void ExportarMensual(string path, PlanVacaciones datos, AppConfig config, List<int> años, string filtroDpto = "")
         {
-            PdfMensualService.Instance.ExportarMensual(path, datos, config, años);
+            PdfMensualService.Instance.ExportarMensual(path, datos, config, años, filtroDpto);
         }
 
-        public void ExportarGantt(string path, PlanVacaciones datos, AppConfig config, List<int> años)
+        public void ExportarGantt(string path, PlanVacaciones datos, AppConfig config, List<int> años, string filtroDpto = "")
         {
-            PdfGanttService.Instance.ExportarGantt(path, datos, config, años);
+            PdfGanttService.Instance.ExportarGantt(path, datos, config, años, filtroDpto);
         }
     }
 }
